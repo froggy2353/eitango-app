@@ -284,6 +284,148 @@
   .mic-result.wrong   { background: #ffebee; color: var(--wrong); }
   .mic-result.empty   { display: none; }
 
+  /* ===== MIC MODAL ===== */
+  .mic-modal-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.55);
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+    align-items: flex-end;
+    justify-content: center;
+    z-index: 200;
+  }
+  .mic-modal-overlay.open {
+    display: flex;
+    animation: overlayIn 0.2s ease;
+  }
+  @keyframes overlayIn {
+    from { opacity: 0; }
+    to   { opacity: 1; }
+  }
+  .mic-modal-card {
+    background: #fff;
+    border-radius: 28px 28px 0 0;
+    padding: 20px 24px 44px;
+    width: 100%;
+    max-width: 480px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+    position: relative;
+    animation: sheetUp 0.32s cubic-bezier(.22,.68,0,1.2);
+  }
+  @keyframes sheetUp {
+    from { transform: translateY(70px); opacity: 0.6; }
+    to   { transform: translateY(0);    opacity: 1;   }
+  }
+  .mic-modal-handle {
+    width: 44px; height: 5px;
+    background: #ddd; border-radius: 3px;
+    margin-bottom: 4px;
+  }
+  .mic-modal-close {
+    position: absolute; top: 18px; right: 18px;
+    width: 34px; height: 34px; border-radius: 50%;
+    background: #f0f0f0; border: none;
+    font-size: 1rem; color: #666; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .mic-modal-title {
+    font-size: 0.9rem; color: #aaa; font-weight: 600;
+    letter-spacing: 0.05em; margin: 0;
+  }
+  .mic-modal-word {
+    font-family: 'Fredoka', sans-serif;
+    font-size: 3rem; font-weight: 700;
+    color: var(--teal-dark); line-height: 1.1;
+    text-align: center;
+  }
+  .mic-modal-ja {
+    font-size: 1.1rem; color: #888; font-weight: 600; margin-top: -4px;
+  }
+
+  /* waveform */
+  .mic-waveform {
+    display: flex; align-items: center; justify-content: center;
+    gap: 5px; height: 48px;
+  }
+  .wave-bar {
+    width: 5px; height: 32px; border-radius: 3px;
+    background: var(--teal-light);
+    transform: scaleY(0.2); transform-origin: center;
+  }
+  .mic-waveform.active .wave-bar {
+    animation: soundwave 0.65s ease-in-out infinite alternate;
+  }
+  .wave-bar:nth-child(1) { animation-delay: 0.00s; }
+  .wave-bar:nth-child(2) { animation-delay: 0.10s; }
+  .wave-bar:nth-child(3) { animation-delay: 0.20s; }
+  .wave-bar:nth-child(4) { animation-delay: 0.05s; }
+  .wave-bar:nth-child(5) { animation-delay: 0.15s; }
+  .wave-bar:nth-child(6) { animation-delay: 0.25s; }
+  .wave-bar:nth-child(7) { animation-delay: 0.08s; }
+  @keyframes soundwave {
+    from { transform: scaleY(0.2); }
+    to   { transform: scaleY(1.0); }
+  }
+
+  .mic-status-text {
+    font-size: 0.92rem; color: #999; font-weight: 600;
+    text-align: center; margin: 0;
+  }
+
+  /* round mic button */
+  .mic-round-btn {
+    width: 84px; height: 84px; border-radius: 50%;
+    background: var(--teal); color: #fff; border: none;
+    font-size: 2.1rem; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 6px 22px rgba(20,162,154,.45);
+    transition: transform 0.15s, background 0.2s, box-shadow 0.2s;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .mic-round-btn:active { transform: scale(0.91); }
+  .mic-round-btn.listening {
+    background: #e53935;
+    animation: pulseRed 1.2s infinite;
+  }
+  @keyframes pulseRed {
+    0%  { box-shadow: 0 0 0 0   rgba(229,57,53,.55); }
+    70% { box-shadow: 0 0 0 18px rgba(229,57,53,0); }
+    100%{ box-shadow: 0 0 0 0   rgba(229,57,53,0); }
+  }
+
+  /* modal result */
+  .mic-modal-result {
+    font-size: 1rem; font-weight: 700; text-align: center;
+    padding: 12px 20px; border-radius: 16px; line-height: 1.6;
+    width: 100%; max-width: 320px; min-height: 0;
+  }
+  .mic-modal-result.correct { background: #e8f5e9; color: var(--correct); }
+  .mic-modal-result.wrong   { background: #ffebee; color: var(--wrong); }
+  .heard-text { font-size: 0.88rem; opacity: 0.75; font-weight: 600; }
+
+  /* modal action buttons */
+  .mic-modal-actions {
+    display: none; flex-direction: row; gap: 12px;
+    width: 100%; max-width: 320px;
+  }
+  .mic-modal-actions.show { display: flex; }
+  .btn-retry {
+    background: var(--teal-pale); color: var(--teal-dark);
+    border: 3px solid var(--teal-light); flex: 1;
+  }
+  .btn-done {
+    background: var(--teal); color: #fff;
+    border: 3px solid var(--teal); flex: 1;
+  }
+
   /* ===== RESULT ===== */
   #screen-result {
     align-items: center;
@@ -401,6 +543,30 @@
       <button class="btn btn-next" id="btn-next">つぎへ →</button>
     </div>
     <div class="no-mic" id="no-mic">※このブラウザはマイクに対応していません</div>
+  </div>
+</div>
+
+<!-- ===== MIC MODAL ===== -->
+<div id="mic-modal" class="mic-modal-overlay" aria-hidden="true">
+  <div class="mic-modal-card">
+    <div class="mic-modal-handle"></div>
+    <button class="mic-modal-close" id="mic-modal-close" aria-label="とじる">✕</button>
+    <p class="mic-modal-title">はつおん れんしゅう 🎤</p>
+    <div class="mic-modal-word" id="mic-modal-word"></div>
+    <div class="mic-modal-ja" id="mic-modal-ja"></div>
+    <div class="mic-waveform" id="mic-waveform">
+      <span class="wave-bar"></span><span class="wave-bar"></span>
+      <span class="wave-bar"></span><span class="wave-bar"></span>
+      <span class="wave-bar"></span><span class="wave-bar"></span>
+      <span class="wave-bar"></span>
+    </div>
+    <p class="mic-status-text" id="mic-status-text">🎙 マイクボタンを おしてね</p>
+    <button class="mic-round-btn" id="mic-round-btn" aria-label="はつおん">🎤</button>
+    <div class="mic-modal-result" id="mic-modal-result"></div>
+    <div class="mic-modal-actions" id="mic-modal-actions">
+      <button class="btn btn-retry" id="mic-modal-retry">🔄 もういちど</button>
+      <button class="btn btn-done" id="mic-modal-done">✕ とじる</button>
+    </div>
   </div>
 </div>
 
@@ -531,9 +697,59 @@ function initRecognition() {
   }
 }
 
-function startRecognition() {
+// ===== MIC MODAL =====
+let micModalLastResult = null;
+
+function openMicModal() {
+  const word = words[index];
+  document.getElementById('mic-modal-word').textContent = word.en;
+  document.getElementById('mic-modal-ja').textContent = word.ja;
+  document.getElementById('mic-modal-result').textContent = '';
+  document.getElementById('mic-modal-result').className = 'mic-modal-result';
+  document.getElementById('mic-modal-actions').classList.remove('show');
+  micModalLastResult = null;
+  setMicState('idle');
+  document.getElementById('mic-modal').setAttribute('aria-hidden', 'false');
+  document.getElementById('mic-modal').classList.add('open');
+}
+
+function closeMicModal() {
+  document.getElementById('mic-modal').classList.remove('open');
+  document.getElementById('mic-modal').setAttribute('aria-hidden', 'true');
+  if (recognition && isListening) { try { recognition.stop(); } catch(e){} isListening = false; }
+  setMicState('idle');
+  // quiz本体のバッジに最終結果を反映
+  if (micModalLastResult) {
+    const el = document.getElementById('mic-result');
+    const { ok, heard } = micModalLastResult;
+    el.className = 'mic-result ' + (ok ? 'correct' : 'wrong');
+    el.textContent = ok ? `⭕ "${heard}" かんぺき！` : `❌ "${heard}"`;
+  }
+}
+
+function setMicState(state) {
+  const waveEl   = document.getElementById('mic-waveform');
+  const statusEl = document.getElementById('mic-status-text');
+  const btnEl    = document.getElementById('mic-round-btn');
+  if (state === 'listening') {
+    waveEl.classList.add('active');
+    statusEl.textContent = '👂 はなしてね...';
+    btnEl.classList.add('listening');
+    btnEl.innerHTML = '⏹';
+  } else {
+    waveEl.classList.remove('active');
+    statusEl.textContent = state === 'processing'
+      ? '⏳ かんがえてるよ...'
+      : '🎙 マイクボタンを おしてね';
+    btnEl.classList.remove('listening');
+    btnEl.innerHTML = '🎤';
+  }
+}
+
+function startMicModal() {
   if (!SR) return;
-  // 毎回新しいインスタンスを作成（ブラウザ互換性のため）
+  if (isListening) { try { recognition && recognition.stop(); } catch(e){} isListening = false; }
+
   recognition = new SR();
   recognition.lang = 'en-US';
   recognition.interimResults = false;
@@ -543,42 +759,48 @@ function startRecognition() {
     const results = Array.from(e.results[0]).map(r => r.transcript.trim().toLowerCase());
     const target = words[index].en.toLowerCase().replace(/\s+/g, ' ');
     const ok = results.some(r => r === target || r.replace(/\s+/g, '') === target.replace(/\s+/g, ''));
-    showMicResult(ok, results[0]);
     isListening = false;
-    document.getElementById('btn-mic').classList.remove('listening');
-    document.getElementById('btn-mic').textContent = '🎤 はつおん';
+    setMicState('idle');
     if (ok) correctCount++;
+    showMicModalResult(ok, results[0]);
   };
   recognition.onerror = () => {
     isListening = false;
-    document.getElementById('btn-mic').classList.remove('listening');
-    document.getElementById('btn-mic').textContent = '🎤 はつおん';
-    showMicResult(false, '（きこえなかったよ）');
+    setMicState('idle');
+    showMicModalResult(false, 'きこえなかったよ');
   };
   recognition.onend = () => {
-    if (isListening) {
-      isListening = false;
-      document.getElementById('btn-mic').classList.remove('listening');
-      document.getElementById('btn-mic').textContent = '🎤 はつおん';
-    }
+    if (isListening) { isListening = false; setMicState('idle'); }
   };
 
-  isListening = true;
-  document.getElementById('btn-mic').classList.add('listening');
-  document.getElementById('btn-mic').innerHTML = '⏹ ていし';
-  try { recognition.start(); } catch(e) {
-    isListening = false;
-    document.getElementById('btn-mic').classList.remove('listening');
-    document.getElementById('btn-mic').textContent = '🎤 はつおん';
+  try {
+    recognition.start();
+    isListening = true;
+    setMicState('listening');
+  } catch(e) {
+    setMicState('idle');
   }
 }
 
-function showMicResult(ok, heard) {
-  const el = document.getElementById('mic-result');
-  el.className = 'mic-result ' + (ok ? 'correct' : 'wrong');
-  el.textContent = ok
-    ? `⭕ すごい！ "${heard}" かんぺき！`
-    : `❌ もういちど！ "${heard}"`;
+function showMicModalResult(ok, heard) {
+  micModalLastResult = { ok, heard };
+  const resultEl  = document.getElementById('mic-modal-result');
+  const actionsEl = document.getElementById('mic-modal-actions');
+  if (ok) {
+    resultEl.className = 'mic-modal-result correct';
+    resultEl.innerHTML =
+      `⭕ すごい！🎉<br><span class="heard-text">"${heard}"</span><br>かんぺき！`;
+    actionsEl.classList.add('show');
+    // 正解なら2.5秒後に自動クローズ
+    setTimeout(() => {
+      if (document.getElementById('mic-modal').classList.contains('open')) closeMicModal();
+    }, 2500);
+  } else {
+    resultEl.className = 'mic-modal-result wrong';
+    resultEl.innerHTML =
+      `❌ もういちど！<br><span class="heard-text">"${heard}"</span>`;
+    actionsEl.classList.add('show');
+  }
 }
 
 // ===== NAVIGATION =====
@@ -645,8 +867,8 @@ function loadCard() {
 
   // buttons
   document.getElementById('btn-row-after').classList.remove('hidden');
-  document.getElementById('btn-mic').classList.remove('listening');
-  document.getElementById('btn-mic').innerHTML = '🎤 はつおん';
+  // モーダルが開いていれば閉じる
+  if (document.getElementById('mic-modal').classList.contains('open')) closeMicModal();
 
   // 自動読み上げ
   speak(word.en);
@@ -708,19 +930,32 @@ document.getElementById('btn-replay').addEventListener('click', () => {
   speak(words[index].en);
 });
 
+// はつおんボタン → モーダルを開き、即座に録音開始（ユーザーのジェスチャー内で実行）
 document.getElementById('btn-mic').addEventListener('click', () => {
   if (!SR) return;
+  openMicModal();
+  startMicModal();
+});
+
+// モーダル内ボタン
+document.getElementById('mic-modal-close').addEventListener('click', closeMicModal);
+document.getElementById('mic-modal-done').addEventListener('click', closeMicModal);
+document.getElementById('mic-modal-retry').addEventListener('click', () => {
+  document.getElementById('mic-modal-result').textContent = '';
+  document.getElementById('mic-modal-result').className = 'mic-modal-result';
+  document.getElementById('mic-modal-actions').classList.remove('show');
+  micModalLastResult = null;
+  startMicModal(); // ユーザーのジェスチャー内
+});
+// ラウンドボタン（リスニング中はストップ、それ以外は開始）
+document.getElementById('mic-round-btn').addEventListener('click', () => {
   if (isListening) {
-    recognition && recognition.stop();
+    try { recognition && recognition.stop(); } catch(e){}
     isListening = false;
-    document.getElementById('btn-mic').classList.remove('listening');
-    document.getElementById('btn-mic').innerHTML = '🎤 はつおん';
-    return;
+    setMicState('idle');
+  } else {
+    startMicModal();
   }
-  const mr = document.getElementById('mic-result');
-  mr.className = 'mic-result empty';
-  mr.textContent = '';
-  startRecognition();
 });
 
 document.getElementById('btn-next').addEventListener('click', nextCard);
