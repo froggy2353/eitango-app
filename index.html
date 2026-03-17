@@ -503,15 +503,19 @@ let isListening = false;
 
 // ===== TTS =====
 function speak(text) {
-  if (!window.speechSynthesis) return;
-  window.speechSynthesis.cancel();
+  const synth = window.speechSynthesis;
+  if (!synth) return;
+  // 話し中のときだけキャンセル（iOS Safariはcancel()が状態を壊すことがある）
+  if (synth.speaking) synth.cancel();
   const utter = new SpeechSynthesisUtterance(text);
   utter.lang = 'en-US';
   utter.rate = 0.85;
   utter.pitch = 1.1;
-  // iOS Safariはpausedになることがある
-  if (window.speechSynthesis.paused) window.speechSynthesis.resume();
-  window.speechSynthesis.speak(utter);
+  // iOS Safari向けに英語ボイスを明示指定
+  const voices = synth.getVoices();
+  const enVoice = voices.find(v => v.lang === 'en-US') || voices.find(v => v.lang.startsWith('en'));
+  if (enVoice) utter.voice = enVoice;
+  synth.speak(utter);
 }
 
 // ===== STT =====
