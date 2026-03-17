@@ -930,11 +930,10 @@ document.getElementById('btn-replay').addEventListener('click', () => {
   speak(words[index].en);
 });
 
-// はつおんボタン → モーダルを開き、即座に録音開始（ユーザーのジェスチャー内で実行）
+// はつおんボタン → モーダルを開くだけ（録音はラウンドボタンで開始）
 document.getElementById('btn-mic').addEventListener('click', () => {
   if (!SR) return;
   openMicModal();
-  startMicModal();
 });
 
 // モーダル内ボタン
