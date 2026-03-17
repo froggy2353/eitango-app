@@ -508,17 +508,31 @@ function speak(text) {
   utter.lang = 'en-US';
   utter.rate = 0.85;
   utter.pitch = 1.1;
-  window.speechSynthesis.speak(utter);
+  // ボイスが未ロードの場合は待って再試行
+  const voices = window.speechSynthesis.getVoices();
+  if (voices.length === 0) {
+    window.speechSynthesis.onvoiceschanged = () => {
+      window.speechSynthesis.onvoiceschanged = null;
+      window.speechSynthesis.speak(utter);
+    };
+  } else {
+    window.speechSynthesis.speak(utter);
+  }
 }
 
 // ===== STT =====
+const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+
 function initRecognition() {
-  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
   if (!SR) {
     document.getElementById('no-mic').classList.add('show');
     document.getElementById('btn-mic').style.display = 'none';
-    return;
   }
+}
+
+function startRecognition() {
+  if (!SR) return;
+  // 毎回新しいインスタンスを作成（ブラウザ互換性のため）
   recognition = new SR();
   recognition.lang = 'en-US';
   recognition.interimResults = false;
@@ -547,6 +561,15 @@ function initRecognition() {
       document.getElementById('btn-mic').textContent = '🎤 はつおん';
     }
   };
+
+  isListening = true;
+  document.getElementById('btn-mic').classList.add('listening');
+  document.getElementById('btn-mic').innerHTML = '⏹ ていし';
+  try { recognition.start(); } catch(e) {
+    isListening = false;
+    document.getElementById('btn-mic').classList.remove('listening');
+    document.getElementById('btn-mic').textContent = '🎤 はつおん';
+  }
 }
 
 function showMicResult(ok, heard) {
@@ -685,9 +708,9 @@ document.getElementById('btn-replay').addEventListener('click', () => {
 });
 
 document.getElementById('btn-mic').addEventListener('click', () => {
-  if (!recognition) return;
+  if (!SR) return;
   if (isListening) {
-    recognition.stop();
+    recognition && recognition.stop();
     isListening = false;
     document.getElementById('btn-mic').classList.remove('listening');
     document.getElementById('btn-mic').innerHTML = '🎤 はつおん';
@@ -696,10 +719,7 @@ document.getElementById('btn-mic').addEventListener('click', () => {
   const mr = document.getElementById('mic-result');
   mr.className = 'mic-result empty';
   mr.textContent = '';
-  isListening = true;
-  document.getElementById('btn-mic').classList.add('listening');
-  document.getElementById('btn-mic').innerHTML = '⏹ ていし';
-  try { recognition.start(); } catch(e) { isListening = false; }
+  startRecognition();
 });
 
 document.getElementById('btn-next').addEventListener('click', nextCard);
