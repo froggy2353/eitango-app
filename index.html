@@ -881,12 +881,18 @@ function startMicModal() {
   if (!SR) return;
   if (isListening) { try { recognition && recognition.stop(); } catch(e){} isListening = false; }
 
+  // iOS: TTSとSTTは同時使用不可 → 先にキャンセル
+  try { window.speechSynthesis && window.speechSynthesis.cancel(); } catch(e){}
+
   recognition = new SR();
   recognition.lang = 'en-US';
   recognition.interimResults = false;
   recognition.maxAlternatives = 5;
 
+  let gotResult = false;
+
   recognition.onresult = (e) => {
+    gotResult = true;
     const results = Array.from(e.results[0]).map(r => r.transcript.trim().toLowerCase());
     const target = words[index].en.toLowerCase().replace(/\s+/g, ' ');
     const ok = results.some(r => r === target || r.replace(/\s+/g, '') === target.replace(/\s+/g, ''));
@@ -895,21 +901,30 @@ function startMicModal() {
     if (ok) correctCount++;
     showMicModalResult(ok, results[0]);
   };
-  recognition.onerror = () => {
+  recognition.onerror = (e) => {
+    gotResult = true;
     isListening = false;
     setMicState('idle');
-    showMicModalResult(false, 'きこえなかったよ');
+    const msg = e.error === 'not-allowed' ? 'マイクを許可してね' : 'きこえなかったよ';
+    showMicModalResult(false, msg);
   };
   recognition.onend = () => {
-    if (isListening) { isListening = false; setMicState('idle'); }
+    if (isListening) {
+      isListening = false;
+      setMicState('idle');
+      // 結果なしで終了した場合（タイムアウト等）
+      if (!gotResult) showMicModalResult(false, 'きこえなかったよ');
+    }
   };
 
   try {
     recognition.start();
     isListening = true;
+    gotResult = false;
     setMicState('listening');
   } catch(e) {
     setMicState('idle');
+    showMicModalResult(false, 'きこえなかったよ');
   }
 }
 
