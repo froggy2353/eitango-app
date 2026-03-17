@@ -378,12 +378,12 @@
   </div>
 
   <div class="quiz-body">
-    <div class="question-label" id="question-label">これはなにかな？🤔</div>
+    <div class="question-label" id="question-label">これはなにかな？</div>
 
     <div class="card" id="card">
       <div class="img-loader" id="img-loader">⏳</div>
       <img class="card-img" id="card-img" src="" alt="" loading="eager">
-      <div class="answer-panel hidden" id="answer-panel">
+      <div class="answer-panel" id="answer-panel">
         <div class="word-en" id="word-en"></div>
         <div class="word-ja" id="word-ja"></div>
       </div>
@@ -391,10 +391,7 @@
 
     <div class="mic-result empty" id="mic-result"></div>
 
-    <div class="btn-row" id="btn-row-before">
-      <button class="btn btn-answer" id="btn-answer">こたえを みる 👀</button>
-    </div>
-    <div class="btn-row hidden" id="btn-row-after">
+    <div class="btn-row" id="btn-row-after">
       <button class="btn btn-replay" id="btn-replay">🔊 もういちど</button>
       <button class="btn btn-mic" id="btn-mic">🎤 はつおん</button>
       <button class="btn btn-next" id="btn-next">つぎへ →</button>
@@ -598,7 +595,7 @@ function loadCard() {
   document.getElementById('progress-bar').style.width = `${(index / total) * 100}%`;
 
   // question label
-  document.getElementById('question-label').textContent = 'これはなにかな？🤔';
+  document.getElementById('question-label').textContent = 'これはなにかな？';
 
   // image
   const img = document.getElementById('card-img');
@@ -609,14 +606,13 @@ function loadCard() {
 
   const url = `https://images.unsplash.com/${word.img}?w=480&q=80`;
   img.onload = () => loader.classList.add('hidden');
-  img.onerror = () => { loader.textContent = word.en[0] === word.en[0].toUpperCase() ? '🖼️' : '🖼️'; };
+  img.onerror = () => { loader.textContent = '🖼️'; };
   img.src = url;
   img.alt = word.en;
 
-  // answer panel
-  document.getElementById('answer-panel').classList.add('hidden');
-  document.getElementById('word-en').textContent = '';
-  document.getElementById('word-ja').textContent = '';
+  // answer panel — always visible
+  document.getElementById('word-en').textContent = word.en;
+  document.getElementById('word-ja').textContent = word.ja;
 
   // mic result
   const mr = document.getElementById('mic-result');
@@ -624,10 +620,12 @@ function loadCard() {
   mr.textContent = '';
 
   // buttons
-  document.getElementById('btn-row-before').classList.remove('hidden');
-  document.getElementById('btn-row-after').classList.add('hidden');
+  document.getElementById('btn-row-after').classList.remove('hidden');
   document.getElementById('btn-mic').classList.remove('listening');
   document.getElementById('btn-mic').innerHTML = '🎤 はつおん';
+
+  // 自動読み上げ
+  speak(word.en);
 }
 
 // ===== SHOW ANSWER =====
@@ -681,8 +679,6 @@ document.getElementById('back-btn').addEventListener('click', () => {
   window.speechSynthesis && window.speechSynthesis.cancel();
   showScreen('screen-home');
 });
-
-document.getElementById('btn-answer').addEventListener('click', showAnswer);
 
 document.getElementById('btn-replay').addEventListener('click', () => {
   speak(words[index].en);
