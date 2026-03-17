@@ -339,14 +339,65 @@
     font-size: 0.9rem; color: #aaa; font-weight: 600;
     letter-spacing: 0.05em; margin: 0;
   }
-  .mic-modal-word {
-    font-family: 'Fredoka', sans-serif;
-    font-size: 3rem; font-weight: 700;
-    color: var(--teal-dark); line-height: 1.1;
-    text-align: center;
+  /* ===== LETTER BOXES (ELSA style) ===== */
+  .letter-boxes {
+    display: flex; gap: 6px; justify-content: center;
+    flex-wrap: wrap; max-width: 100%; padding: 4px 0;
+    perspective: 600px;
   }
-  .mic-modal-ja {
-    font-size: 1.1rem; color: #888; font-weight: 600; margin-top: -4px;
+  .letter-box {
+    min-width: 42px; height: 52px; padding: 0 6px;
+    border-radius: 12px;
+    display: flex; align-items: center; justify-content: center;
+    font-family: 'Fredoka', sans-serif;
+    font-size: 1.9rem; font-weight: 700;
+    border: 3px solid #ddd; background: #f5f5f5; color: #c0c0c0;
+  }
+  .letter-box.ok {
+    background: #e8f5e9; border-color: #4caf50; color: #2e7d32;
+    animation: popBox 0.35s cubic-bezier(.17,.67,.46,1.5);
+  }
+  .letter-box.ng {
+    background: #ffebee; border-color: #e53935; color: #c62828;
+    animation: popBox 0.35s cubic-bezier(.17,.67,.46,1.5);
+  }
+  .letter-box.partial {
+    background: #fff8e1; border-color: #ffb300; color: #e65100;
+    animation: popBox 0.35s cubic-bezier(.17,.67,.46,1.5);
+  }
+  @keyframes popBox {
+    0%   { transform: scale(1)    rotateX(0deg);   }
+    30%  { transform: scale(0.8)  rotateX(-90deg); }
+    60%  { transform: scale(1.15) rotateX(0deg);   }
+    100% { transform: scale(1)    rotateX(0deg);   }
+  }
+  .kana-hint {
+    font-size: 0.92rem; color: #bbb; font-weight: 600;
+    letter-spacing: 0.08em; text-align: center; margin-top: -4px;
+  }
+
+  /* ===== SCORE ===== */
+  .pronunciation-score {
+    display: flex; align-items: baseline; gap: 3px;
+    animation: scorePopIn 0.45s cubic-bezier(.17,.67,.46,1.5);
+  }
+  .score-number {
+    font-family: 'Fredoka', sans-serif;
+    font-size: 3.2rem; font-weight: 700; line-height: 1;
+  }
+  .score-unit { font-size: 1rem; font-weight: 700; color: #999; }
+  .score-perfect { color: #4caf50; }
+  .score-good    { color: #ff9800; }
+  .score-try     { color: #e53935; }
+  @keyframes scorePopIn {
+    0%   { transform: scale(0.4); opacity: 0; }
+    100% { transform: scale(1);   opacity: 1; }
+  }
+
+  /* きいた言葉 */
+  .heard-label {
+    font-size: 0.88rem; color: #aaa; font-weight: 600;
+    text-align: center; min-height: 1.3em; margin: 0;
   }
 
   /* waveform */
@@ -401,15 +452,7 @@
     100%{ box-shadow: 0 0 0 0   rgba(229,57,53,0); }
   }
 
-  /* modal result */
-  .mic-modal-result {
-    font-size: 1rem; font-weight: 700; text-align: center;
-    padding: 12px 20px; border-radius: 16px; line-height: 1.6;
-    width: 100%; max-width: 320px; min-height: 0;
-  }
-  .mic-modal-result.correct { background: #e8f5e9; color: var(--correct); }
-  .mic-modal-result.wrong   { background: #ffebee; color: var(--wrong); }
-  .heard-text { font-size: 0.88rem; opacity: 0.75; font-weight: 600; }
+  /* (mic-modal-result は letter-boxes + score に置き換え済み) */
 
   /* modal action buttons */
   .mic-modal-actions {
@@ -552,8 +595,17 @@
     <div class="mic-modal-handle"></div>
     <button class="mic-modal-close" id="mic-modal-close" aria-label="とじる">✕</button>
     <p class="mic-modal-title">はつおん れんしゅう 🎤</p>
-    <div class="mic-modal-word" id="mic-modal-word"></div>
-    <div class="mic-modal-ja" id="mic-modal-ja"></div>
+
+    <!-- ELSA スタイル: レターボックス -->
+    <div class="letter-boxes" id="letter-boxes"></div>
+    <p class="kana-hint" id="kana-hint"></p>
+
+    <!-- スコア（結果後に表示） -->
+    <div class="pronunciation-score" id="pronunciation-score" style="display:none">
+      <span class="score-number" id="score-number">100</span><span class="score-unit">てん</span>
+    </div>
+
+    <!-- 波形 -->
     <div class="mic-waveform" id="mic-waveform">
       <span class="wave-bar"></span><span class="wave-bar"></span>
       <span class="wave-bar"></span><span class="wave-bar"></span>
@@ -562,7 +614,10 @@
     </div>
     <p class="mic-status-text" id="mic-status-text">🎙 マイクボタンを おしてね</p>
     <button class="mic-round-btn" id="mic-round-btn" aria-label="はつおん">🎤</button>
-    <div class="mic-modal-result" id="mic-modal-result"></div>
+
+    <!-- きいた言葉 -->
+    <p class="heard-label" id="heard-label"></p>
+
     <div class="mic-modal-actions" id="mic-modal-actions">
       <button class="btn btn-retry" id="mic-modal-retry">🔄 もういちど</button>
       <button class="btn btn-done" id="mic-modal-done">✕ とじる</button>
@@ -697,15 +752,91 @@ function initRecognition() {
   }
 }
 
+// ===== KANA HINTS =====
+const KANA_HINTS = {
+  'Cat':'キャット','Dog':'ドッグ','Elephant':'エレファント','Lion':'ライオン',
+  'Rabbit':'ラビット','Panda':'パンダ','Penguin':'ペンギン','Giraffe':'ジラフ',
+  'Apple':'アップル','Banana':'バナナ','Strawberry':'ストロベリー',
+  'Watermelon':'ウォーターメロン','Orange':'オレンジ','Grapes':'グレープス',
+  'Peach':'ピーチ','Lemon':'レモン','Red':'レッド','Blue':'ブルー',
+  'Yellow':'イエロー','Green':'グリーン','Pink':'ピンク','Purple':'パープル',
+  'White':'ホワイト','Eye':'アイ','Nose':'ノーズ','Ear':'イアー',
+  'Hand':'ハンド','Foot':'フット','Mouth':'マウス','Hair':'ヘアー',
+  'Rice':'ライス','Bread':'ブレッド','Pizza':'ピッツァ','Cake':'ケーキ',
+  'Cookie':'クッキー','Ice cream':'アイスクリーム','Egg':'エッグ','Milk':'ミルク',
+  'Sun':'サン','Moon':'ムーン','Star':'スター','Rain':'レイン',
+  'Snow':'スノー','Flower':'フラワー','Tree':'トゥリー','River':'リバー'
+};
+
+// ===== PRONUNCIATION SCORING =====
+// 編集距離ベースで各文字を ok / ng に分類
+function scorePronunciation(target, heard) {
+  const t = target.toLowerCase().replace(/\s+/g, '');
+  const h = heard.toLowerCase().replace(/\s+/g, '');
+  if (t === h) {
+    return { score: 100, charResults: target.split('').map(c => c === ' ' ? 'space' : 'ok') };
+  }
+  // Wagner-Fischer DP
+  const m = t.length, n = h.length;
+  const dp = Array.from({length: m+1}, (_, i) =>
+    Array.from({length: n+1}, (_, j) => i === 0 ? j : j === 0 ? i : 0));
+  for (let i = 1; i <= m; i++)
+    for (let j = 1; j <= n; j++)
+      dp[i][j] = t[i-1] === h[j-1]
+        ? dp[i-1][j-1]
+        : 1 + Math.min(dp[i-1][j-1], dp[i-1][j], dp[i][j-1]);
+
+  // traceback → alignment for target chars
+  const align = [];
+  let i = m, j = n;
+  while (i > 0 || j > 0) {
+    if (i > 0 && j > 0 && t[i-1] === h[j-1]) {
+      align.unshift('ok'); i--; j--;
+    } else if (i > 0 && j > 0 && dp[i][j] === dp[i-1][j-1] + 1) {
+      align.unshift('ng'); i--; j--;        // substitution
+    } else if (j > 0 && dp[i][j] === dp[i][j-1] + 1) {
+      j--;                                   // insertion in heard (skip)
+    } else {
+      align.unshift('ng'); i--;              // deletion
+    }
+  }
+  const okCount = align.filter(r => r === 'ok').length;
+  const score = Math.round((okCount / m) * 100);
+  // spaces are always neutral
+  let ci = 0;
+  const charResults = target.split('').map(c => c === ' ' ? 'space' : (align[ci++] || 'ng'));
+  return { score, charResults };
+}
+
+// レターボックスを描画（result なければグレー）
+function renderLetterBoxes(word, charResults) {
+  const container = document.getElementById('letter-boxes');
+  container.innerHTML = word.split('').map((c, i) => {
+    if (c === ' ') return '<div class="letter-box" style="min-width:10px;border:none;background:transparent"></div>';
+    const cls = charResults ? charResults[i] || 'ng' : '';
+    return `<div class="letter-box ${cls}">${c}</div>`;
+  }).join('');
+}
+
+// スコアを表示しアニメーション
+function showScore(score) {
+  const el = document.getElementById('pronunciation-score');
+  const num = document.getElementById('score-number');
+  num.textContent = score;
+  num.className = 'score-number ' +
+    (score === 100 ? 'score-perfect' : score >= 70 ? 'score-good' : 'score-try');
+  el.style.display = 'flex';
+}
+
 // ===== MIC MODAL =====
 let micModalLastResult = null;
 
 function openMicModal() {
   const word = words[index];
-  document.getElementById('mic-modal-word').textContent = word.en;
-  document.getElementById('mic-modal-ja').textContent = word.ja;
-  document.getElementById('mic-modal-result').textContent = '';
-  document.getElementById('mic-modal-result').className = 'mic-modal-result';
+  renderLetterBoxes(word.en, null);
+  document.getElementById('kana-hint').textContent = KANA_HINTS[word.en] || '';
+  document.getElementById('pronunciation-score').style.display = 'none';
+  document.getElementById('heard-label').textContent = '';
   document.getElementById('mic-modal-actions').classList.remove('show');
   micModalLastResult = null;
   setMicState('idle');
@@ -784,22 +915,38 @@ function startMicModal() {
 
 function showMicModalResult(ok, heard) {
   micModalLastResult = { ok, heard };
-  const resultEl  = document.getElementById('mic-modal-result');
+  const target = words[index].en;
+  const { score, charResults } = scorePronunciation(target, heard);
   const actionsEl = document.getElementById('mic-modal-actions');
-  if (ok) {
-    resultEl.className = 'mic-modal-result correct';
-    resultEl.innerHTML =
-      `⭕ すごい！🎉<br><span class="heard-text">"${heard}"</span><br>かんぺき！`;
-    actionsEl.classList.add('show');
-    // 正解なら2.5秒後に自動クローズ
+
+  // レターボックスをスコア別に1文字ずつ遅延で色をつける（ELSAスタイル）
+  renderLetterBoxes(target, null); // まずグレーで再描画
+  const boxes = document.querySelectorAll('#letter-boxes .letter-box');
+  let bi = 0;
+  target.split('').forEach((c, i) => {
+    if (c === ' ') return;
+    const box = boxes[i];
+    if (!box) return;
+    const delay = bi * 110;
+    bi++;
+    setTimeout(() => { box.classList.add(charResults[i] || 'ng'); }, delay);
+  });
+
+  // スコアは全ボックス開示後に表示
+  const totalDelay = (bi - 1) * 110 + 400;
+  setTimeout(() => showScore(score), totalDelay);
+
+  // きいた言葉
+  document.getElementById('heard-label').textContent =
+    heard === 'きこえなかったよ' ? '（きこえなかったよ）' : `「${heard}」と きこえたよ`;
+
+  actionsEl.classList.add('show');
+
+  // 100点なら2.5秒後に自動クローズ
+  if (score === 100) {
     setTimeout(() => {
       if (document.getElementById('mic-modal').classList.contains('open')) closeMicModal();
-    }, 2500);
-  } else {
-    resultEl.className = 'mic-modal-result wrong';
-    resultEl.innerHTML =
-      `❌ もういちど！<br><span class="heard-text">"${heard}"</span>`;
-    actionsEl.classList.add('show');
+    }, totalDelay + 1800);
   }
 }
 
@@ -940,8 +1087,9 @@ document.getElementById('btn-mic').addEventListener('click', () => {
 document.getElementById('mic-modal-close').addEventListener('click', closeMicModal);
 document.getElementById('mic-modal-done').addEventListener('click', closeMicModal);
 document.getElementById('mic-modal-retry').addEventListener('click', () => {
-  document.getElementById('mic-modal-result').textContent = '';
-  document.getElementById('mic-modal-result').className = 'mic-modal-result';
+  renderLetterBoxes(words[index].en, null); // グレーにリセット
+  document.getElementById('pronunciation-score').style.display = 'none';
+  document.getElementById('heard-label').textContent = '';
   document.getElementById('mic-modal-actions').classList.remove('show');
   micModalLastResult = null;
   startMicModal(); // ユーザーのジェスチャー内
