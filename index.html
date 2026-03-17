@@ -504,14 +504,13 @@ let isListening = false;
 function speak(text) {
   if (!window.speechSynthesis) return;
   window.speechSynthesis.cancel();
-  // cancel()直後にspeak()すると無視されるブラウザがあるため少し待つ
-  setTimeout(() => {
-    const utter = new SpeechSynthesisUtterance(text);
-    utter.lang = 'en-US';
-    utter.rate = 0.85;
-    utter.pitch = 1.1;
-    window.speechSynthesis.speak(utter);
-  }, 100);
+  const utter = new SpeechSynthesisUtterance(text);
+  utter.lang = 'en-US';
+  utter.rate = 0.85;
+  utter.pitch = 1.1;
+  // iOS Safariはpausedになることがある
+  if (window.speechSynthesis.paused) window.speechSynthesis.resume();
+  window.speechSynthesis.speak(utter);
 }
 
 // ===== STT =====
