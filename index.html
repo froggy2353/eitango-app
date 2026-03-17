@@ -146,6 +146,8 @@
     align-items: center;
     padding: 16px 16px 24px;
     gap: 14px;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
   }
 
   .question-label {
@@ -167,6 +169,7 @@
   .card-img {
     width: 100%;
     aspect-ratio: 1 / 1;
+    max-height: 42dvh;
     object-fit: cover;
     display: block;
     background: #e0f2f1;
