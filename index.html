@@ -220,6 +220,7 @@
     cursor: pointer;
     transition: transform .15s, opacity .15s;
     -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
   }
   .btn:active { transform: scale(0.95); opacity: .85; }
   .btn-answer {
@@ -718,10 +719,7 @@ document.getElementById('btn-mic').addEventListener('click', () => {
 document.getElementById('btn-next').addEventListener('click', nextCard);
 document.getElementById('btn-home').addEventListener('click', () => showScreen('screen-home'));
 
-// prevent double-tap zoom
-document.addEventListener('touchend', e => {
-  if (e.target.tagName === 'BUTTON') e.preventDefault();
-}, { passive: false });
+// double-tap zoom prevention is handled via CSS touch-action: manipulation
 </script>
 </body>
 </html>
