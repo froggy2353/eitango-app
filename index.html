@@ -504,20 +504,14 @@ let isListening = false;
 function speak(text) {
   if (!window.speechSynthesis) return;
   window.speechSynthesis.cancel();
-  const utter = new SpeechSynthesisUtterance(text);
-  utter.lang = 'en-US';
-  utter.rate = 0.85;
-  utter.pitch = 1.1;
-  // ボイスが未ロードの場合は待って再試行
-  const voices = window.speechSynthesis.getVoices();
-  if (voices.length === 0) {
-    window.speechSynthesis.onvoiceschanged = () => {
-      window.speechSynthesis.onvoiceschanged = null;
-      window.speechSynthesis.speak(utter);
-    };
-  } else {
+  // cancel()直後にspeak()すると無視されるブラウザがあるため少し待つ
+  setTimeout(() => {
+    const utter = new SpeechSynthesisUtterance(text);
+    utter.lang = 'en-US';
+    utter.rate = 0.85;
+    utter.pitch = 1.1;
     window.speechSynthesis.speak(utter);
-  }
+  }, 100);
 }
 
 // ===== STT =====
