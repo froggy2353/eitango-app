@@ -833,7 +833,7 @@ function showScore(score) {
 // ===== MIC MODAL =====
 let micModalLastResult = null;
 let micModalOpenTime   = 0;
-let micStream          = null; // オーディオセッション維持用
+let micStream          = null;
 
 function openMicModal() {
   micModalOpenTime = Date.now();
@@ -858,8 +858,6 @@ function closeMicModal() {
   document.getElementById('mic-modal').setAttribute('aria-hidden', 'true');
   if (recognition && isListening) { try { recognition.stop(); } catch(e){} isListening = false; }
   setMicState('idle');
-  // モーダルを閉じたらストリームを解放
-  if (micStream) { micStream.getTracks().forEach(t => t.stop()); micStream = null; }
   // quiz本体のバッジに最終結果を反映
   if (micModalLastResult) {
     const el = document.getElementById('mic-result');
@@ -896,11 +894,13 @@ async function startMicModal() {
   // iOS: TTSとSTTは同時使用不可 → 先にキャンセル
   try { window.speechSynthesis && window.speechSynthesis.cancel(); } catch(e){}
 
-  // iOS: 毎回 getUserMedia でオーディオセッションをリフレッシュする
-  // → 2回目以降も recognition.start() が正常に動作する
+  // iOS: getUserMedia でオーディオセッションを一瞬起動して即解放
+  // → recognition.start() がセッションを引き継げるようになる
+  // （ストリームを保持したままだとマイクの取り合いが起きて onresult が発火しない）
   try {
     if (micStream) { micStream.getTracks().forEach(t => t.stop()); micStream = null; }
-    micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    stream.getTracks().forEach(t => t.stop()); // 即解放
   } catch(e) {
     if (e.name === 'NotAllowedError' || e.name === 'PermissionDeniedError') {
       document.getElementById('mic-status-text').textContent = 'マイクを許可してね ⚠️';
@@ -911,7 +911,6 @@ async function startMicModal() {
   recognition = new SR();
   recognition.lang = 'en-US';
   recognition.interimResults = false;
-  recognition.continuous = true;  // iOS: 無音タイムアウトによる自動停止を防ぐ
   recognition.maxAlternatives = 5;
   let gotResult = false;
 
@@ -935,8 +934,6 @@ async function startMicModal() {
     }
   };
   recognition.onend = () => {
-    // 録音終了時にストリームを解放 → マイクアイコンが消える
-    if (micStream) { micStream.getTracks().forEach(t => t.stop()); micStream = null; }
     if (isListening) {
       isListening = false;
       setMicState('idle');
