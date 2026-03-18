@@ -908,18 +908,20 @@ function startMicModal() {
     showMicModalResult(ok, results[0]);
   };
   recognition.onerror = (e) => {
-    gotResult = true;
     isListening = false;
-    setMicState('idle');
-    const msg = e.error === 'not-allowed' ? 'マイクを許可してね' : 'きこえなかったよ';
-    showMicModalResult(false, msg);
+    if (e.error === 'not-allowed') {
+      // マイク権限なし：ステータスだけ更新（スコア表示しない）
+      setMicState('idle');
+      document.getElementById('mic-status-text').textContent = 'マイクを許可してね ⚠️';
+    } else {
+      // no-speech / aborted 等：静かにリセット、再挑戦できる状態に
+      setMicState('idle');
+    }
   };
   recognition.onend = () => {
     if (isListening) {
       isListening = false;
-      setMicState('idle');
-      // 結果なしで終了した場合（タイムアウト等）
-      if (!gotResult) showMicModalResult(false, 'きこえなかったよ');
+      setMicState('idle'); // 音声なし終了 → リセットのみ、スコア表示しない
     }
   };
 
@@ -929,8 +931,8 @@ function startMicModal() {
     gotResult = false;
     setMicState('listening');
   } catch(e) {
+    isListening = false;
     setMicState('idle');
-    showMicModalResult(false, 'きこえなかったよ');
   }
 }
 
