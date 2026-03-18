@@ -624,10 +624,7 @@
     <!-- きいた言葉 -->
     <p class="heard-label" id="heard-label"></p>
 
-    <div class="mic-modal-actions" id="mic-modal-actions">
-      <button class="btn btn-retry" id="mic-modal-retry">🔄 もういちど</button>
-      <button class="btn btn-done" id="mic-modal-done">✕ とじる</button>
-    </div>
+    <div class="mic-modal-actions" id="mic-modal-actions"></div>
   </div>
 </div>
 
@@ -1314,15 +1311,6 @@ document.getElementById('btn-mic').addEventListener('click', () => {
 
 // モーダル内ボタン
 document.getElementById('mic-modal-close').addEventListener('click', closeMicModal);
-document.getElementById('mic-modal-done').addEventListener('click', closeMicModal);
-document.getElementById('mic-modal-retry').addEventListener('click', () => {
-  renderLetterBoxes(words[index].en, null);
-  document.getElementById('pronunciation-score').style.display = 'none';
-  document.getElementById('heard-label').textContent = '';
-  document.getElementById('mic-modal-actions').classList.remove('show');
-  micModalLastResult = null;
-  setMicState('idle');
-});
 
 // ラウンドボタン：タップでON/OFF（5秒後に自動停止）
 // ゴーストクリックは openMicModal() の pointer-events:none で防ぐ
