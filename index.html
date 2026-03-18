@@ -846,6 +846,10 @@ function openMicModal() {
   setMicState('idle');
   document.getElementById('mic-modal').setAttribute('aria-hidden', 'false');
   document.getElementById('mic-modal').classList.add('open');
+  // ゴーストクリック対策：モーダル表示直後500msはボタンを無効化
+  const micBtn = document.getElementById('mic-round-btn');
+  micBtn.style.pointerEvents = 'none';
+  setTimeout(() => { micBtn.style.pointerEvents = ''; }, 500);
 }
 
 function closeMicModal() {
@@ -1119,31 +1123,15 @@ document.getElementById('mic-modal-retry').addEventListener('click', () => {
 });
 
 // ラウンドボタン：タップでON/OFF（発話が終われば自動停止）
-// touchend を使う → iOS ゴーストクリック（click イベント）を完全に排除
-(function() {
-  const btn = document.getElementById('mic-round-btn');
-  let touched = false;
-
-  function handleMicTap(e) {
-    e.preventDefault(); // touchend → click の連鎖も防ぐ
-    if (isListening) {
-      try { recognition && recognition.stop(); } catch(e){}
-    } else {
-      startMicModal();
-    }
+// click を使用（iOS Speech API はユーザージェスチャーとして click が必要）
+// ゴーストクリックは openMicModal() の pointer-events:none で防ぐ
+document.getElementById('mic-round-btn').addEventListener('click', () => {
+  if (isListening) {
+    try { recognition && recognition.stop(); } catch(e){}
+  } else {
+    startMicModal();
   }
-
-  btn.addEventListener('touchend', (e) => {
-    touched = true;
-    handleMicTap(e);
-  }, { passive: false });
-
-  // デスクトップ（タッチなし）用フォールバック
-  btn.addEventListener('click', (e) => {
-    if (touched) { touched = false; return; } // touchend で処理済み
-    handleMicTap(e);
-  });
-})();
+});
 
 document.getElementById('btn-next').addEventListener('click', nextCard);
 document.getElementById('btn-home').addEventListener('click', () => showScreen('screen-home'));
