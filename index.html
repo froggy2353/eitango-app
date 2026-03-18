@@ -729,7 +729,6 @@ let words = [];
 let index = 0;
 let correctCount = 0;
 let answered = false;
-let recognition = null;
 let isListening = false;
 
 // ===== TTS =====
@@ -749,11 +748,12 @@ function speak(text) {
   synth.speak(utter);
 }
 
-// ===== STT =====
-const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+// ===== 発音評価バックエンド =====
+const BACKEND_URL = 'http://localhost:8000';
 
+// MediaRecorder API の有無を確認（STT の代わりに使用）
 function initRecognition() {
-  if (!SR) {
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
     document.getElementById('no-mic').classList.add('show');
     document.getElementById('btn-mic').style.display = 'none';
   }
@@ -839,9 +839,10 @@ function showScore(score) {
 let micModalLastResult = null;
 let micModalOpenTime   = 0;
 let micStream          = null;
+let mediaRecorder      = null;
+let audioChunks        = [];
 
-// iOS: オーディオセッションを非同期でウォームアップ（fire-and-forget）
-// recognition.start() は同期で呼ぶ必要があるため、事前にセッションを起動しておく
+// iOS: オーディオセッションを事前起動（getUserMedia を高速化）
 function prewarmAudio() {
   navigator.mediaDevices.getUserMedia({ audio: true })
     .then(s => s.getTracks().forEach(t => t.stop()))
@@ -871,7 +872,11 @@ function openMicModal() {
 function closeMicModal() {
   document.getElementById('mic-modal').classList.remove('open');
   document.getElementById('mic-modal').setAttribute('aria-hidden', 'true');
-  if (recognition && isListening) { try { recognition.stop(); } catch(e){} isListening = false; }
+  if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+    try { mediaRecorder.stop(); } catch(e){}
+  }
+  if (micStream) { micStream.getTracks().forEach(t => t.stop()); micStream = null; }
+  isListening = false;
   setMicState('idle');
   // quiz本体のバッジに最終結果を反映
   if (micModalLastResult) {
@@ -902,55 +907,121 @@ function setMicState(state) {
   }
 }
 
-function startMicModal() {
-  if (!SR) return;
-  if (isListening) { try { recognition && recognition.stop(); } catch(e){} isListening = false; }
-
-  // iOS: TTSとSTTは同時使用不可 → 先にキャンセル
+async function startMicModal() {
+  // iOS: TTSと同時使用不可 → 先にキャンセル
   try { window.speechSynthesis && window.speechSynthesis.cancel(); } catch(e){}
 
-  recognition = new SR();
-  recognition.lang = 'en-US';
-  recognition.interimResults = false;
-  recognition.maxAlternatives = 5;
-  let gotResult = false;
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    micStream = stream;
 
-  recognition.onresult = (e) => {
-    if (gotResult) return;
-    gotResult = true;
-    try { recognition.stop(); } catch(e){}
-    const results = Array.from(e.results[0]).map(r => r.transcript.trim().toLowerCase());
-    const target = words[index].en.toLowerCase().replace(/\s+/g, ' ');
-    const ok = results.some(r => r === target || r.replace(/\s+/g, '') === target.replace(/\s+/g, ''));
-    isListening = false;
-    setMicState('idle');
-    if (ok) correctCount++;
-    showMicModalResult(ok, results[0]);
-  };
-  recognition.onerror = (e) => {
-    isListening = false;
-    setMicState('idle');
-    if (e.error === 'not-allowed') {
-      document.getElementById('mic-status-text').textContent = 'マイクを許可してね ⚠️';
-    }
-  };
-  recognition.onend = () => {
-    if (isListening) {
+    // ブラウザ対応フォーマットを選択（iOS Safari は audio/mp4）
+    const mimeType = ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4', 'audio/ogg']
+      .find(t => MediaRecorder.isTypeSupported(t)) || '';
+
+    audioChunks = [];
+    mediaRecorder = new MediaRecorder(stream, mimeType ? { mimeType } : {});
+
+    mediaRecorder.ondataavailable = (e) => {
+      if (e.data.size > 0) audioChunks.push(e.data);
+    };
+
+    mediaRecorder.onstop = async () => {
+      // ストリームを閉じる
+      stream.getTracks().forEach(t => t.stop());
+      micStream = null;
+      setMicState('processing');
+
+      const blob = new Blob(audioChunks, { type: mediaRecorder.mimeType || 'audio/webm' });
+      const word = words[index].en;
+      try {
+        const fd = new FormData();
+        fd.append('audio', blob, 'recording.webm');
+        fd.append('word', word);
+        const res = await fetch(`${BACKEND_URL}/assess`, { method: 'POST', body: fd });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const result = await res.json();
+        if (result.error) throw new Error(result.error);
+        showMicModalResultFromBackend(result, word);
+      } catch (err) {
+        console.warn('バックエンドエラー（フォールバック）:', err);
+        // バックエンドが使えない場合はフォールバック表示
+        showMicModalResult(false, 'きこえなかったよ');
+      }
       isListening = false;
       setMicState('idle');
-    }
-    // 次回タップに備えてオーディオセッションを再起動（fire-and-forget）
-    prewarmAudio();
-  };
+    };
 
-  try {
-    recognition.start();
+    mediaRecorder.start();
     isListening = true;
-    gotResult = false;
     setMicState('listening');
-  } catch(e) {
+
+    // 5秒後に自動停止
+    setTimeout(() => {
+      if (mediaRecorder && mediaRecorder.state === 'recording') {
+        mediaRecorder.stop();
+      }
+    }, 5000);
+
+  } catch (err) {
     isListening = false;
     setMicState('idle');
+    if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
+      document.getElementById('mic-status-text').textContent = 'マイクを許可してね ⚠️';
+    } else {
+      console.error('マイクエラー:', err);
+    }
+  }
+}
+
+function stopMicRecording() {
+  if (mediaRecorder && mediaRecorder.state === 'recording') {
+    mediaRecorder.stop();
+  }
+}
+
+// バックエンドからの発音スコアで文字ボックスを色付け
+function showMicModalResultFromBackend(result, word) {
+  const { chars, score } = result;
+  const ok = score >= 70;
+  if (ok) correctCount++;
+  micModalLastResult = { ok, heard: word };
+
+  renderLetterBoxes(word, null);
+  const boxes = document.querySelectorAll('#letter-boxes .letter-box');
+  let bi = 0;
+  let charIdx = 0;
+  word.split('').forEach((c, i) => {
+    if (c === ' ') return;
+    const box = boxes[i];
+    if (!box) return;
+    const charData = chars[charIdx++];
+    // スコア閾値: 70以上→ok(緑), 50以上→partial(黄), 未満→ng(赤)
+    const cls = !charData ? 'ng'
+      : charData.score >= 70 ? 'ok'
+      : charData.score >= 50 ? 'partial'
+      : 'ng';
+    const delay = bi * 110;
+    bi++;
+    setTimeout(() => { box.classList.add(cls); }, delay);
+  });
+
+  const totalDelay = Math.max(0, bi - 1) * 110 + 400;
+  setTimeout(() => showScore(score), totalDelay);
+
+  // 詳細フィードバック（苦手な音を表示）
+  const weakChars = (chars || []).filter(c => c.score < 70).map(c => c.char).join(', ');
+  document.getElementById('heard-label').textContent = weakChars
+    ? `「${weakChars}」の おとを れんしゅうしよう！`
+    : ok ? '🎉 じょうず！' : '🔄 もういちど やってみよう';
+
+  document.getElementById('mic-modal-actions').classList.add('show');
+
+  // 95点以上なら自動クローズ
+  if (score >= 95) {
+    setTimeout(() => {
+      if (document.getElementById('mic-modal').classList.contains('open')) closeMicModal();
+    }, totalDelay + 1800);
   }
 }
 
@@ -1074,7 +1145,9 @@ function showAnswer() {
 
 // ===== NEXT =====
 function nextCard() {
-  if (recognition && isListening) { recognition.stop(); isListening = false; }
+  if (mediaRecorder && mediaRecorder.state !== 'inactive') { try { mediaRecorder.stop(); } catch(e){} }
+  if (micStream) { micStream.getTracks().forEach(t => t.stop()); micStream = null; }
+  isListening = false;
   index++;
   if (index >= words.length) {
     showResult();
@@ -1105,7 +1178,9 @@ document.querySelectorAll('.cat-btn').forEach(btn => {
 });
 
 document.getElementById('back-btn').addEventListener('click', () => {
-  if (recognition && isListening) { recognition.stop(); isListening = false; }
+  if (mediaRecorder && mediaRecorder.state !== 'inactive') { try { mediaRecorder.stop(); } catch(e){} }
+  if (micStream) { micStream.getTracks().forEach(t => t.stop()); micStream = null; }
+  isListening = false;
   window.speechSynthesis && window.speechSynthesis.cancel();
   showScreen('screen-home');
 });
@@ -1116,7 +1191,7 @@ document.getElementById('btn-replay').addEventListener('click', () => {
 
 // はつおんボタン → モーダルを開くだけ（録音はラウンドボタンで開始）
 document.getElementById('btn-mic').addEventListener('click', () => {
-  if (!SR) return;
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) return;
   openMicModal();
 });
 
@@ -1132,12 +1207,11 @@ document.getElementById('mic-modal-retry').addEventListener('click', () => {
   setMicState('idle');
 });
 
-// ラウンドボタン：タップでON/OFF（発話が終われば自動停止）
-// click を使用（iOS Speech API はユーザージェスチャーとして click が必要）
+// ラウンドボタン：タップでON/OFF（5秒後に自動停止）
 // ゴーストクリックは openMicModal() の pointer-events:none で防ぐ
 document.getElementById('mic-round-btn').addEventListener('click', () => {
   if (isListening) {
-    try { recognition && recognition.stop(); } catch(e){}
+    stopMicRecording();
   } else {
     startMicModal();
   }
