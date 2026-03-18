@@ -832,8 +832,10 @@ function showScore(score) {
 
 // ===== MIC MODAL =====
 let micModalLastResult = null;
+let micModalOpenTime   = 0;
 
 function openMicModal() {
+  micModalOpenTime = Date.now();
   const word = words[index];
   renderLetterBoxes(word.en, null);
   document.getElementById('kana-hint').textContent = KANA_HINTS[word.en] || '';
@@ -1116,6 +1118,8 @@ document.getElementById('mic-modal-retry').addEventListener('click', () => {
 
 // ラウンドボタン：タップでON/OFF（発話が終われば自動停止）
 document.getElementById('mic-round-btn').addEventListener('click', () => {
+  // iOS ゴーストクリック対策：モーダルを開いた直後の click を無視
+  if (Date.now() - micModalOpenTime < 500) return;
   if (isListening) {
     try { recognition && recognition.stop(); } catch(e){}
   } else {
