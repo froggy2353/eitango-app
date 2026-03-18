@@ -833,6 +833,7 @@ function showScore(score) {
 // ===== MIC MODAL =====
 let micModalLastResult = null;
 let micModalOpenTime   = 0;
+let micStream          = null; // オーディオセッション維持用
 
 async function openMicModal() {
   micModalOpenTime = Date.now();
@@ -852,9 +853,12 @@ async function openMicModal() {
   setTimeout(() => { micBtn.style.pointerEvents = ''; }, 500);
   // 「はつおん」ボタンのジェスチャー内でマイク権限を先取り
   // → マイクボタン押下時に recognition.start() を同期で呼べるようになる
+  // ストリームを保持してオーディオセッションを生かし続ける
+  // → 2回目以降の recognition.start() もすぐ使える
   try {
-    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-    stream.getTracks().forEach(t => t.stop());
+    if (!micStream) {
+      micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    }
   } catch(e) {
     document.getElementById('mic-status-text').textContent = 'マイクを許可してね ⚠️';
   }
@@ -865,6 +869,8 @@ function closeMicModal() {
   document.getElementById('mic-modal').setAttribute('aria-hidden', 'true');
   if (recognition && isListening) { try { recognition.stop(); } catch(e){} isListening = false; }
   setMicState('idle');
+  // モーダルを閉じたらストリームを解放
+  if (micStream) { micStream.getTracks().forEach(t => t.stop()); micStream = null; }
   // quiz本体のバッジに最終結果を反映
   if (micModalLastResult) {
     const el = document.getElementById('mic-result');
