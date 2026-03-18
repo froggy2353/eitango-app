@@ -1004,7 +1004,6 @@ function startQuiz(cat) {
   words = shuffle([...data.words]);
   index = 0;
   correctCount = 0;
-  document.getElementById('quiz-cat-title').textContent = data.label;
   showScreen('screen-quiz');
   loadCard();
   initRecognition();
