@@ -641,7 +641,9 @@
   <button class="btn btn-home" id="btn-home">ホームにもどる 🏠</button>
 </div>
 
-<script>
+<script type="module">
+import { AutoProcessor, AutoModelForCTC, env }
+  from 'https://cdn.jsdelivr.net/npm/@xenova/transformers@2.17.2';
 // ===== DATA =====
 const CATEGORIES = {
   animals: {
@@ -748,15 +750,135 @@ function speak(text) {
   synth.speak(utter);
 }
 
-// ===== 発音評価バックエンド =====
-const BACKEND_URL = 'http://localhost:8000';
+// ===== Transformers.js Wav2Vec2 モデル =====
+// Xenova/wav2vec2-base-960h: 文字レベルCTC出力、量子化版で約90MB
+// 初回のみHugging Face Hubからダウンロード → IndexedDBにキャッシュ
+const MODEL_ID = 'Xenova/wav2vec2-base-960h';
+let _processor = null;
+let _model = null;
+const modelReady = (async () => {
+  env.allowLocalModels = false;
+  const onProgress = ({ status, progress }) => {
+    if (status === 'downloading' || status === 'loading') {
+      const pct = progress ? Math.round(progress) : '...';
+      const el = document.getElementById('mic-status-text');
+      if (el) el.textContent = `モデル読み込み中 ${pct}%`;
+    }
+  };
+  _processor = await AutoProcessor.from_pretrained(MODEL_ID);
+  _model = await AutoModelForCTC.from_pretrained(MODEL_ID,
+    { quantized: true, progress_callback: onProgress });
+})();
 
-// MediaRecorder API の有無を確認（STT の代わりに使用）
 function initRecognition() {
   if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
     document.getElementById('no-mic').classList.add('show');
     document.getElementById('btn-mic').style.display = 'none';
   }
+}
+
+// ===== CTC 強制アラインメント =====
+// logitsFlat: Float32Array [T*V], T=時間, V=語彙数
+// targetIds: number[] 目標トークンID列
+// 戻り値: 文字ごとの平均 log確率
+function ctcForcedAlign(logitsFlat, T, V, targetIds, blankId) {
+  const S = targetIds.length;
+  const NEG_INF = -1e10;
+
+  // log softmax を時間ステップごとに適用
+  const lsp = new Float64Array(logitsFlat.length);
+  for (let t = 0; t < T; t++) {
+    const off = t * V;
+    let mx = -Infinity;
+    for (let v = 0; v < V; v++) if (logitsFlat[off + v] > mx) mx = logitsFlat[off + v];
+    let sum = 0;
+    for (let v = 0; v < V; v++) sum += Math.exp(logitsFlat[off + v] - mx);
+    const logSum = mx + Math.log(sum);
+    for (let v = 0; v < V; v++) lsp[off + v] = logitsFlat[off + v] - logSum;
+  }
+
+  // 前向き DP: alphaTable[t][s] = t フレームで s 文字アラインした際の最良累積 log確率
+  const alphaTable = Array.from({ length: T + 1 }, () => new Float64Array(S + 1).fill(NEG_INF));
+  alphaTable[0][0] = 0.0;
+  for (let t = 1; t <= T; t++) {
+    const off = (t - 1) * V;
+    for (let s = 0; s <= S; s++) {
+      const prev = alphaTable[t - 1][s];
+      if (prev <= NEG_INF) continue;
+      // blank を出力 → 同じ s に留まる
+      const bs = prev + lsp[off + blankId];
+      if (bs > alphaTable[t][s]) alphaTable[t][s] = bs;
+      // 文字 s を出力 → s+1 に進む
+      if (s < S) {
+        const cs = prev + lsp[off + targetIds[s]];
+        if (cs > alphaTable[t][s + 1]) alphaTable[t][s + 1] = cs;
+      }
+    }
+  }
+
+  // 後ろ向きトレースバック
+  const charLPs = Array.from({ length: S }, () => []);
+  let s = S;
+  for (let t = T; t >= 1 && s > 0; t--) {
+    const off = (t - 1) * V;
+    const via_char = alphaTable[t - 1][s - 1] + lsp[off + targetIds[s - 1]];
+    const via_blank = alphaTable[t - 1][s] + lsp[off + blankId];
+    if (via_char >= via_blank && alphaTable[t - 1][s - 1] > NEG_INF) {
+      charLPs[s - 1].push(lsp[off + targetIds[s - 1]]);
+      s--;
+    }
+  }
+  return charLPs.map(lps =>
+    lps.length > 0 ? lps.reduce((a, b) => a + b) / lps.length : -10);
+}
+
+// log確率 [-4, 0] → スコア [0, 100]
+function lpToScore(lp) {
+  return Math.max(0, Math.min(100, Math.round((lp + 4) / 4 * 100)));
+}
+
+// 音声 Blob → 16kHz Float32Array（mono）
+async function blobToFloat32(blob) {
+  const buf = await blob.arrayBuffer();
+  const ctx = new AudioContext({ sampleRate: 16000 });
+  try {
+    const ab = await ctx.decodeAudioData(buf);
+    return ab.getChannelData(0); // mono
+  } finally {
+    ctx.close();
+  }
+}
+
+// Wav2Vec2 + CTC 強制アラインメントで文字ごとの発音スコアを計算
+async function assessPronunciation(audioBlob, word) {
+  await modelReady;
+  const float32 = await blobToFloat32(audioBlob);
+  const inputs = await _processor(float32, { sampling_rate: 16000 });
+  const { logits } = await _model(inputs); // [1, T, V]
+  const T = logits.dims[1], V = logits.dims[2];
+
+  const vocab = _processor.tokenizer.get_vocab();
+  const blankId = vocab['<pad>'] ?? 0;
+
+  const targetIds = [];
+  for (const c of word.toUpperCase()) {
+    if (c !== ' ' && vocab[c] !== undefined) targetIds.push(vocab[c]);
+  }
+  if (targetIds.length === 0) {
+    const chars = [...word].filter(c => c !== ' ').map(c => ({ char: c, score: 50 }));
+    return { chars, score: 50 };
+  }
+
+  const charLPs = ctcForcedAlign(logits.data, T, V, targetIds, blankId);
+
+  const chars = [];
+  let idx = 0;
+  for (const c of word) {
+    if (c === ' ') continue;
+    chars.push({ char: c, score: lpToScore(charLPs[idx++] ?? -10) });
+  }
+  const score = Math.round(chars.reduce((a, b) => a + b.score, 0) / chars.length);
+  return { chars, score };
 }
 
 // ===== KANA HINTS =====
@@ -935,17 +1057,11 @@ async function startMicModal() {
       const blob = new Blob(audioChunks, { type: mediaRecorder.mimeType || 'audio/webm' });
       const word = words[index].en;
       try {
-        const fd = new FormData();
-        fd.append('audio', blob, 'recording.webm');
-        fd.append('word', word);
-        const res = await fetch(`${BACKEND_URL}/assess`, { method: 'POST', body: fd });
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const result = await res.json();
-        if (result.error) throw new Error(result.error);
+        // ブラウザ内 Wav2Vec2 で発音評価（サーバー不要）
+        const result = await assessPronunciation(blob, word);
         showMicModalResultFromBackend(result, word);
       } catch (err) {
-        console.warn('バックエンドエラー（フォールバック）:', err);
-        // バックエンドが使えない場合はフォールバック表示
+        console.warn('評価エラー:', err);
         showMicModalResult(false, 'きこえなかったよ');
       }
       isListening = false;
