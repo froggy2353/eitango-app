@@ -564,8 +564,6 @@
   </div>
 
   <div class="quiz-body">
-    <div class="question-label" id="question-label">これはなにかな？</div>
-
     <div class="card" id="card">
       <div class="img-loader" id="img-loader">⏳</div>
       <img class="card-img" id="card-img" src="" alt="" loading="eager">
@@ -1019,7 +1017,6 @@ function loadCard() {
   document.getElementById('progress-bar').style.width = `${(index / total) * 100}%`;
 
   // question label
-  document.getElementById('question-label').textContent = 'これはなにかな？';
 
   // image
   const img = document.getElementById('card-img');
@@ -1060,7 +1057,6 @@ function showAnswer() {
   document.getElementById('answer-panel').classList.remove('hidden');
   document.getElementById('word-en').textContent = word.en;
   document.getElementById('word-ja').textContent = word.ja;
-  document.getElementById('question-label').textContent = `これは "${word.en}" だよ！`;
   document.getElementById('btn-row-before').classList.add('hidden');
   document.getElementById('btn-row-after').classList.remove('hidden');
   speak(word.en);
