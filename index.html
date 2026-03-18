@@ -835,7 +835,7 @@ let micModalLastResult = null;
 let micModalOpenTime   = 0;
 let micStream          = null; // オーディオセッション維持用
 
-async function openMicModal() {
+function openMicModal() {
   micModalOpenTime = Date.now();
   const word = words[index];
   renderLetterBoxes(word.en, null);
@@ -851,17 +851,6 @@ async function openMicModal() {
   const micBtn = document.getElementById('mic-round-btn');
   micBtn.style.pointerEvents = 'none';
   setTimeout(() => { micBtn.style.pointerEvents = ''; }, 500);
-  // 「はつおん」ボタンのジェスチャー内でマイク権限を先取り
-  // → マイクボタン押下時に recognition.start() を同期で呼べるようになる
-  // ストリームを保持してオーディオセッションを生かし続ける
-  // → 2回目以降の recognition.start() もすぐ使える
-  try {
-    if (!micStream) {
-      micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-    }
-  } catch(e) {
-    document.getElementById('mic-status-text').textContent = 'マイクを許可してね ⚠️';
-  }
 }
 
 function closeMicModal() {
@@ -946,6 +935,8 @@ async function startMicModal() {
     }
   };
   recognition.onend = () => {
+    // 録音終了時にストリームを解放 → マイクアイコンが消える
+    if (micStream) { micStream.getTracks().forEach(t => t.stop()); micStream = null; }
     if (isListening) {
       isListening = false;
       setMicState('idle');
