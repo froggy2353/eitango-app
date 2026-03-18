@@ -200,9 +200,7 @@
     letter-spacing: .03em;
   }
   .word-ja {
-    font-size: 1.1rem;
-    color: var(--teal);
-    font-weight: 700;
+    display: none;
   }
 
   .btn-row {
@@ -215,11 +213,16 @@
   }
   .btn {
     font-family: 'Zen Maru Gothic', sans-serif;
-    font-size: 1rem;
+    font-size: 1.5rem;
     font-weight: 700;
     border: none;
     border-radius: 99px;
-    padding: 14px 24px;
+    padding: 0;
+    width: 64px;
+    height: 64px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
     cursor: pointer;
     transition: transform .15s, opacity .15s;
     -webkit-tap-highlight-color: transparent;
@@ -237,19 +240,11 @@
     background: var(--teal);
     color: var(--white);
     box-shadow: 0 4px 14px rgba(20,162,154,.4);
-    flex: 1;
-    min-width: 130px;
   }
   .btn-mic {
     background: var(--teal-pale);
     color: var(--teal-dark);
     border: 3px solid var(--teal-light);
-    flex: 1;
-    min-width: 130px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 6px;
   }
   .btn-mic.listening {
     background: var(--teal-light);
@@ -583,9 +578,9 @@
     <div class="mic-result empty" id="mic-result"></div>
 
     <div class="btn-row" id="btn-row-after">
-      <button class="btn btn-replay" id="btn-replay">🔊 もういちど</button>
-      <button class="btn btn-mic" id="btn-mic">🎤 はつおん</button>
-      <button class="btn btn-next" id="btn-next">つぎへ →</button>
+      <button class="btn btn-replay" id="btn-replay" aria-label="もういちど">🔊</button>
+      <button class="btn btn-next" id="btn-next" aria-label="つぎへ">➡️</button>
+      <button class="btn btn-mic" id="btn-mic" aria-label="はつおん">🗣️</button>
     </div>
     <div class="no-mic" id="no-mic">※このブラウザはマイクに対応していません</div>
   </div>
