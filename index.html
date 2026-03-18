@@ -836,13 +836,28 @@ function lpToScore(lp) {
 // 音声 Blob → 16kHz Float32Array（mono）
 async function blobToFloat32(blob) {
   const buf = await blob.arrayBuffer();
-  const ctx = new AudioContext({ sampleRate: 16000 });
+  // まずネイティブのサンプルレートでデコード
+  const ctx = new AudioContext();
+  let ab;
   try {
-    const ab = await ctx.decodeAudioData(buf);
-    return ab.getChannelData(0); // mono
+    ab = await ctx.decodeAudioData(buf);
   } finally {
     ctx.close();
   }
+  // すでに 16kHz ならそのまま返す
+  if (ab.sampleRate === 16000) {
+    return ab.getChannelData(0);
+  }
+  // OfflineAudioContext で 16kHz にリサンプリング
+  const targetRate = 16000;
+  const outLen = Math.ceil(ab.length * targetRate / ab.sampleRate);
+  const offline = new OfflineAudioContext(1, outLen, targetRate);
+  const src = offline.createBufferSource();
+  src.buffer = ab;
+  src.connect(offline.destination);
+  src.start(0);
+  const resampled = await offline.startRendering();
+  return resampled.getChannelData(0);
 }
 
 // Wav2Vec2 + CTC 強制アラインメントで文字ごとの発音スコアを計算
