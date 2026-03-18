@@ -638,7 +638,7 @@
 </div>
 
 <script type="module">
-import { AutoProcessor, AutoModelForCTC, env }
+import { AutoProcessor, AutoModelForCTC, AutoTokenizer, env }
   from 'https://cdn.jsdelivr.net/npm/@xenova/transformers@2.17.2';
 // ===== DATA =====
 const CATEGORIES = {
@@ -751,6 +751,7 @@ function speak(text) {
 // 初回のみHugging Face Hubからダウンロード → IndexedDBにキャッシュ
 const MODEL_ID = 'Xenova/wav2vec2-base-960h';
 let _processor = null;
+let _tokenizer = null;
 let _model = null;
 const modelReady = (async () => {
   env.allowLocalModels = false;
@@ -762,6 +763,7 @@ const modelReady = (async () => {
     }
   };
   _processor = await AutoProcessor.from_pretrained(MODEL_ID);
+  _tokenizer = await AutoTokenizer.from_pretrained(MODEL_ID);
   _model = await AutoModelForCTC.from_pretrained(MODEL_ID,
     { quantized: true, progress_callback: onProgress });
 })();
@@ -868,7 +870,7 @@ async function assessPronunciation(audioBlob, word) {
   const { logits } = await _model(inputs); // [1, T, V]
   const T = logits.dims[1], V = logits.dims[2];
 
-  const vocab = _processor.tokenizer.get_vocab();
+  const vocab = _tokenizer.get_vocab();
   const blankId = vocab['<pad>'] ?? 0;
 
   const targetIds = [];
