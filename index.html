@@ -1117,15 +1117,31 @@ document.getElementById('mic-modal-retry').addEventListener('click', () => {
 });
 
 // ラウンドボタン：タップでON/OFF（発話が終われば自動停止）
-document.getElementById('mic-round-btn').addEventListener('click', () => {
-  // iOS ゴーストクリック対策：モーダルを開いた直後の click を無視
-  if (Date.now() - micModalOpenTime < 500) return;
-  if (isListening) {
-    try { recognition && recognition.stop(); } catch(e){}
-  } else {
-    startMicModal();
+// touchend を使う → iOS ゴーストクリック（click イベント）を完全に排除
+(function() {
+  const btn = document.getElementById('mic-round-btn');
+  let touched = false;
+
+  function handleMicTap(e) {
+    e.preventDefault(); // touchend → click の連鎖も防ぐ
+    if (isListening) {
+      try { recognition && recognition.stop(); } catch(e){}
+    } else {
+      startMicModal();
+    }
   }
-});
+
+  btn.addEventListener('touchend', (e) => {
+    touched = true;
+    handleMicTap(e);
+  }, { passive: false });
+
+  // デスクトップ（タッチなし）用フォールバック
+  btn.addEventListener('click', (e) => {
+    if (touched) { touched = false; return; } // touchend で処理済み
+    handleMicTap(e);
+  });
+})();
 
 document.getElementById('btn-next').addEventListener('click', nextCard);
 document.getElementById('btn-home').addEventListener('click', () => showScreen('screen-home'));
