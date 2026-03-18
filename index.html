@@ -886,12 +886,24 @@ function setMicState(state) {
   }
 }
 
-function startMicModal() {
+async function startMicModal() {
   if (!SR) return;
   if (isListening) { try { recognition && recognition.stop(); } catch(e){} isListening = false; }
 
   // iOS: TTSとSTTは同時使用不可 → 先にキャンセル
   try { window.speechSynthesis && window.speechSynthesis.cancel(); } catch(e){}
+
+  // getUserMedia でマイク権限を明示取得してから Speech Recognition を開始
+  // iOS Safari では先に権限を取らないと認識が即終了することがある
+  setMicState('listening'); // 先にUIを更新（ユーザーへのフィードバック）
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    stream.getTracks().forEach(t => t.stop()); // 権限確認のみ、ストリームは不要
+  } catch (err) {
+    setMicState('idle');
+    document.getElementById('mic-status-text').textContent = 'マイクを許可してね ⚠️';
+    return;
+  }
 
   recognition = new SR();
   recognition.lang = 'en-US';
@@ -913,19 +925,15 @@ function startMicModal() {
   };
   recognition.onerror = (e) => {
     isListening = false;
+    setMicState('idle');
     if (e.error === 'not-allowed') {
-      // マイク権限なし：ステータスだけ更新（スコア表示しない）
-      setMicState('idle');
       document.getElementById('mic-status-text').textContent = 'マイクを許可してね ⚠️';
-    } else {
-      // no-speech / aborted 等：静かにリセット、再挑戦できる状態に
-      setMicState('idle');
     }
   };
   recognition.onend = () => {
     if (isListening) {
       isListening = false;
-      setMicState('idle'); // 音声なし終了 → リセットのみ、スコア表示しない
+      setMicState('idle');
     }
   };
 
@@ -933,7 +941,6 @@ function startMicModal() {
     recognition.start();
     isListening = true;
     gotResult = false;
-    setMicState('listening');
   } catch(e) {
     isListening = false;
     setMicState('idle');
