@@ -969,7 +969,8 @@ function ctcForcedAlign(logitsFlat, T, V, targetIds, blankId) {
 
 // log確率 [-4, 0] → スコア [0, 100]
 function lpToScore(lp) {
-  return Math.max(0, Math.min(100, Math.round((lp + 4) / 4 * 100)));
+  // [-10, 0] → [0, 100] に拡張: digraphや非母語話者でも適切なスコアが出るように
+  return Math.max(0, Math.min(100, Math.round((lp + 10) / 10 * 100)));
 }
 
 // 音声 Blob → 16kHz Float32Array（mono）
@@ -1131,28 +1132,36 @@ function showIPACompare(word, chars, decoded) {
     return `<span class="ipa-cell ${cls}">${ipa ? '/'+ipa+'/' : '・'}</span>`;
   }).join('');
 
-  // じぶん行: greedy decode した文字を IPA に変換
-  const decodedCells = decoded.length > 0
-    ? decoded.split('').map(c => {
-        const ipa = CHAR_TO_IPA[c.toUpperCase()] || c.toLowerCase();
-        // 対応する目標IPA と異なれば diff クラス
-        const pos = decoded.indexOf(c);
-        const targetIpa = ipaChars[pos];
-        const isDiff = ipa && targetIpa && ipa !== targetIpa;
-        return `<span class="ipa-cell${isDiff ? ' diff' : ''}">${ipa ? '/'+ipa+'/' : '?'}</span>`;
-      }).join('')
-    : '<span class="ipa-cell" style="color:#bbb">—</span>';
+  // greedy decode の信頼性チェック: 文字数が大きく違う場合は非表示
+  const targetUpper = word.replace(/ /g, '').toUpperCase();
+  const lenOk = decoded.length > 0
+    && Math.abs(decoded.length - targetUpper.length) <= Math.max(2, Math.floor(targetUpper.length / 2));
+  // 共通文字が1文字以上あるかチェック
+  const overlap = decoded.split('').filter(c => targetUpper.includes(c)).length;
+  const decodedIsPlausible = lenOk && overlap >= 1;
 
-  el.innerHTML = `
-    <div class="ipa-row">
-      <span class="ipa-label">お手本</span>
-      <div class="ipa-cells">${targetCells}</div>
-    </div>
+  // じぶん行: greedy decode した文字を IPA に変換（信頼できる場合のみ）
+  let decodedHtml = '';
+  if (decodedIsPlausible) {
+    const decodedCells = decoded.split('').map((c, pos) => {
+      const ipa = CHAR_TO_IPA[c.toUpperCase()] || c.toLowerCase();
+      const targetIpa = ipaChars[pos];
+      const isDiff = ipa && targetIpa && ipa !== targetIpa;
+      return `<span class="ipa-cell${isDiff ? ' diff' : ''}">${ipa ? '/'+ipa+'/' : '?'}</span>`;
+    }).join('');
+    decodedHtml = `
     <div class="ipa-separator"></div>
     <div class="ipa-row">
       <span class="ipa-label">じぶん</span>
       <div class="ipa-cells">${decodedCells}</div>
     </div>`;
+  }
+
+  el.innerHTML = `
+    <div class="ipa-row">
+      <span class="ipa-label">お手本</span>
+      <div class="ipa-cells">${targetCells}</div>
+    </div>${decodedHtml}`;
   el.style.display = 'flex';
 }
 
