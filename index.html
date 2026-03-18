@@ -1075,6 +1075,8 @@ async function startMicModal() {
         showMicModalResultFromBackend(result, word);
       } catch (err) {
         console.warn('評価エラー:', err);
+        const msg = err?.message || String(err);
+        document.getElementById('mic-status-text').textContent = `エラー: ${msg}`;
         showMicModalResult(false, 'きこえなかったよ');
       }
       isListening = false;
