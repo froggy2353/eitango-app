@@ -638,7 +638,7 @@
 </div>
 
 <script type="module">
-import { AutoProcessor, AutoModelForCTC, AutoTokenizer, env }
+import { AutoProcessor, AutoModelForCTC, env }
   from 'https://cdn.jsdelivr.net/npm/@xenova/transformers@2.17.2';
 // ===== DATA =====
 const CATEGORIES = {
@@ -751,7 +751,6 @@ function speak(text) {
 // 初回のみHugging Face Hubからダウンロード → IndexedDBにキャッシュ
 const MODEL_ID = 'Xenova/wav2vec2-base-960h';
 let _processor = null;
-let _tokenizer = null;
 let _model = null;
 const modelReady = (async () => {
   env.allowLocalModels = false;
@@ -763,7 +762,6 @@ const modelReady = (async () => {
     }
   };
   _processor = await AutoProcessor.from_pretrained(MODEL_ID);
-  _tokenizer = await AutoTokenizer.from_pretrained(MODEL_ID);
   _model = await AutoModelForCTC.from_pretrained(MODEL_ID,
     { quantized: true, progress_callback: onProgress });
 })();
@@ -870,8 +868,13 @@ async function assessPronunciation(audioBlob, word) {
   const { logits } = await _model(inputs); // [1, T, V]
   const T = logits.dims[1], V = logits.dims[2];
 
-  const vocab = _tokenizer.get_vocab();
-  const blankId = vocab['<pad>'] ?? 0;
+  // wav2vec2-base-960h の固定 vocab（ブラウザ互換性のためハードコード）
+  const vocab = {
+    '<pad>':0,'<unk>':1,'|':2,'E':3,'T':4,'A':5,'O':6,'N':7,'I':8,'H':9,
+    'S':10,'R':11,'D':12,'L':13,'U':14,'M':15,'W':16,'C':17,'F':18,'G':19,
+    'Y':20,'P':21,'B':22,'V':23,'K':24,"'":25,'X':26,'J':27,'Q':28,'Z':29
+  };
+  const blankId = 0;
 
   const targetIds = [];
   for (const c of word.toUpperCase()) {
