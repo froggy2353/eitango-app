@@ -835,6 +835,14 @@ let micModalLastResult = null;
 let micModalOpenTime   = 0;
 let micStream          = null;
 
+// iOS: オーディオセッションを非同期でウォームアップ（fire-and-forget）
+// recognition.start() は同期で呼ぶ必要があるため、事前にセッションを起動しておく
+function prewarmAudio() {
+  navigator.mediaDevices.getUserMedia({ audio: true })
+    .then(s => s.getTracks().forEach(t => t.stop()))
+    .catch(() => {});
+}
+
 function openMicModal() {
   micModalOpenTime = Date.now();
   const word = words[index];
@@ -851,6 +859,8 @@ function openMicModal() {
   const micBtn = document.getElementById('mic-round-btn');
   micBtn.style.pointerEvents = 'none';
   setTimeout(() => { micBtn.style.pointerEvents = ''; }, 500);
+  // 初回録音に備えてオーディオセッションを起動（ユーザージェスチャー内）
+  prewarmAudio();
 }
 
 function closeMicModal() {
@@ -887,26 +897,12 @@ function setMicState(state) {
   }
 }
 
-async function startMicModal() {
+function startMicModal() {
   if (!SR) return;
   if (isListening) { try { recognition && recognition.stop(); } catch(e){} isListening = false; }
 
   // iOS: TTSとSTTは同時使用不可 → 先にキャンセル
   try { window.speechSynthesis && window.speechSynthesis.cancel(); } catch(e){}
-
-  // iOS: getUserMedia でオーディオセッションを一瞬起動して即解放
-  // → recognition.start() がセッションを引き継げるようになる
-  // （ストリームを保持したままだとマイクの取り合いが起きて onresult が発火しない）
-  try {
-    if (micStream) { micStream.getTracks().forEach(t => t.stop()); micStream = null; }
-    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-    stream.getTracks().forEach(t => t.stop()); // 即解放
-  } catch(e) {
-    if (e.name === 'NotAllowedError' || e.name === 'PermissionDeniedError') {
-      document.getElementById('mic-status-text').textContent = 'マイクを許可してね ⚠️';
-      return;
-    }
-  }
 
   recognition = new SR();
   recognition.lang = 'en-US';
@@ -938,6 +934,8 @@ async function startMicModal() {
       isListening = false;
       setMicState('idle');
     }
+    // 次回タップに備えてオーディオセッションを再起動（fire-and-forget）
+    prewarmAudio();
   };
 
   try {
@@ -1136,11 +1134,11 @@ document.getElementById('mic-modal-retry').addEventListener('click', () => {
 // ラウンドボタン：タップでON/OFF（発話が終われば自動停止）
 // click を使用（iOS Speech API はユーザージェスチャーとして click が必要）
 // ゴーストクリックは openMicModal() の pointer-events:none で防ぐ
-document.getElementById('mic-round-btn').addEventListener('click', async () => {
+document.getElementById('mic-round-btn').addEventListener('click', () => {
   if (isListening) {
     try { recognition && recognition.stop(); } catch(e){}
   } else {
-    await startMicModal();
+    startMicModal();
   }
 });
 
