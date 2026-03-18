@@ -465,6 +465,35 @@
     border: 3px solid var(--teal); flex: 1;
   }
 
+  /* ===== 聴き比べボタン ===== */
+  .compare-btns {
+    display: flex; align-items: center; gap: 0;
+    background: #f4f4f4; border-radius: 18px;
+    padding: 6px; width: 100%; max-width: 280px;
+    margin: 4px 0 8px;
+  }
+  .btn-compare {
+    flex: 1; display: flex; flex-direction: column; align-items: center;
+    gap: 4px; padding: 10px 8px;
+    background: transparent; border: none; border-radius: 14px;
+    cursor: pointer; transition: background 0.15s;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .btn-compare:active { background: #e0e0e0; }
+  .btn-compare.playing {
+    background: var(--teal); box-shadow: 0 2px 8px rgba(0,163,150,.35);
+  }
+  .btn-compare.playing .compare-icon,
+  .btn-compare.playing .compare-label { color: #fff; }
+  .compare-icon { font-size: 1.6rem; line-height: 1; }
+  .compare-label {
+    font-size: 0.72rem; font-weight: 700;
+    color: #555; letter-spacing: 0.02em;
+  }
+  .compare-divider {
+    width: 1px; height: 36px; background: #ddd; flex-shrink: 0;
+  }
+
   /* ===== RESULT ===== */
   #screen-result {
     align-items: center;
@@ -623,6 +652,19 @@
 
     <!-- きいた言葉 -->
     <p class="heard-label" id="heard-label"></p>
+
+    <!-- 聴き比べボタン -->
+    <div class="compare-btns" id="compare-btns" style="display:none">
+      <button class="btn-compare" id="btn-listen-model" aria-label="お手本を聴く">
+        <span class="compare-icon">🔊</span>
+        <span class="compare-label">お手本</span>
+      </button>
+      <div class="compare-divider"></div>
+      <button class="btn-compare" id="btn-listen-me" aria-label="自分の発音を聴く">
+        <span class="compare-icon">🎤</span>
+        <span class="compare-label">じぶん</span>
+      </button>
+    </div>
 
     <div class="mic-modal-actions" id="mic-modal-actions"></div>
   </div>
@@ -979,6 +1021,8 @@ let micModalOpenTime   = 0;
 let micStream          = null;
 let mediaRecorder      = null;
 let audioChunks        = [];
+let lastAudioBlob      = null;   // 聴き比べ用: 直近の録音
+let _compareAudio      = null;   // 再生中のAudioオブジェクト
 
 // iOS: オーディオセッションを事前起動（getUserMedia を高速化）
 function prewarmAudio() {
@@ -1016,6 +1060,8 @@ function closeMicModal() {
   if (micStream) { micStream.getTracks().forEach(t => t.stop()); micStream = null; }
   isListening = false;
   setMicState('idle');
+  stopCompareAudio();
+  document.getElementById('compare-btns').style.display = 'none';
   // quiz本体のバッジに最終結果を反映
   if (micModalLastResult) {
     const el = document.getElementById('mic-result');
@@ -1071,6 +1117,7 @@ async function startMicModal() {
       setMicState('processing');
 
       const blob = new Blob(audioChunks, { type: mediaRecorder.mimeType || 'audio/webm' });
+      lastAudioBlob = blob;   // 聴き比べ用に保存
       const word = words[index].en;
       try {
         // ブラウザ内 Wav2Vec2 で発音評価（サーバー不要）、15秒タイムアウト付き
@@ -1154,6 +1201,13 @@ function showMicModalResultFromBackend(result, word) {
     : ok ? '🎉 じょうず！' : '🔄 もういちど やってみよう';
 
   document.getElementById('mic-modal-actions').classList.add('show');
+
+  // 聴き比べボタンを表示
+  document.getElementById('compare-btns').style.display = 'flex';
+  // 再生状態をリセット
+  stopCompareAudio();
+  document.getElementById('btn-listen-model').classList.remove('playing');
+  document.getElementById('btn-listen-me').classList.remove('playing');
 
   // 95点以上なら自動クローズ
   if (score >= 95) {
@@ -1331,6 +1385,69 @@ document.getElementById('btn-replay').addEventListener('click', () => {
 document.getElementById('btn-mic').addEventListener('click', () => {
   if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) return;
   openMicModal();
+});
+
+// ===== 聴き比べ =====
+function stopCompareAudio() {
+  if (_compareAudio) {
+    _compareAudio.pause();
+    _compareAudio.currentTime = 0;
+    _compareAudio = null;
+  }
+  window.speechSynthesis && window.speechSynthesis.cancel();
+}
+
+function setComparePlaying(btnId, playing) {
+  ['btn-listen-model', 'btn-listen-me'].forEach(id => {
+    document.getElementById(id).classList.toggle('playing', id === btnId && playing);
+  });
+}
+
+document.getElementById('btn-listen-model').addEventListener('click', () => {
+  const btn = document.getElementById('btn-listen-model');
+  if (btn.classList.contains('playing')) {
+    stopCompareAudio();
+    setComparePlaying(null, false);
+    return;
+  }
+  stopCompareAudio();
+  setComparePlaying('btn-listen-model', true);
+  const word = words[index].en;
+  const synth = window.speechSynthesis;
+  if (!synth) { setComparePlaying(null, false); return; }
+  const utter = new SpeechSynthesisUtterance(word);
+  utter.lang = 'en-US'; utter.rate = 0.85; utter.pitch = 1.1;
+  const enVoice = synth.getVoices().find(v => v.lang === 'en-US')
+    || synth.getVoices().find(v => v.lang.startsWith('en'));
+  if (enVoice) utter.voice = enVoice;
+  utter.onend = () => setComparePlaying(null, false);
+  utter.onerror = () => setComparePlaying(null, false);
+  synth.speak(utter);
+});
+
+document.getElementById('btn-listen-me').addEventListener('click', () => {
+  const btn = document.getElementById('btn-listen-me');
+  if (btn.classList.contains('playing')) {
+    stopCompareAudio();
+    setComparePlaying(null, false);
+    return;
+  }
+  if (!lastAudioBlob) return;
+  stopCompareAudio();
+  setComparePlaying('btn-listen-me', true);
+  const url = URL.createObjectURL(lastAudioBlob);
+  _compareAudio = new Audio(url);
+  _compareAudio.onended = () => {
+    setComparePlaying(null, false);
+    URL.revokeObjectURL(url);
+    _compareAudio = null;
+  };
+  _compareAudio.onerror = () => {
+    setComparePlaying(null, false);
+    URL.revokeObjectURL(url);
+    _compareAudio = null;
+  };
+  _compareAudio.play().catch(() => setComparePlaying(null, false));
 });
 
 // モーダル内ボタン
