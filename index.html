@@ -614,7 +614,7 @@
       <span class="wave-bar"></span><span class="wave-bar"></span>
       <span class="wave-bar"></span>
     </div>
-    <p class="mic-status-text" id="mic-status-text">おしながら はなしてね 🎙</p>
+    <p class="mic-status-text" id="mic-status-text">マイクを おして はなしてね 🎙</p>
     <button class="mic-round-btn" id="mic-round-btn" aria-label="はつおん">🎤</button>
 
     <!-- きいた言葉 -->
@@ -873,10 +873,10 @@ function setMicState(state) {
     waveEl.classList.remove('active');
     statusEl.textContent = state === 'processing'
       ? '⏳ かんがえてるよ...'
-      : 'おしながら はなしてね 🎙';
+      : 'マイクを おして はなしてね 🎙';
     btnEl.classList.remove('listening');
     btnEl.innerHTML = '🎤';
-    statusEl.textContent = 'おしながら はなしてね 🎙';
+    statusEl.textContent = 'マイクを おして はなしてね 🎙';
   }
 }
 
@@ -891,8 +891,6 @@ function startMicModal() {
   recognition.lang = 'en-US';
   recognition.interimResults = false;
   recognition.maxAlternatives = 5;
-  recognition.continuous = true; // 押している間ずっとリスニング
-
   let gotResult = false;
 
   recognition.onresult = (e) => {
@@ -1116,20 +1114,14 @@ document.getElementById('mic-modal-retry').addEventListener('click', () => {
   setMicState('idle');
 });
 
-// ラウンドボタン：押している間だけ録音
-const micRoundBtn = document.getElementById('mic-round-btn');
-micRoundBtn.addEventListener('pointerdown', (e) => {
-  e.preventDefault();
-  if (!isListening) startMicModal();
-});
-function stopMicOnRelease() {
+// ラウンドボタン：タップでON/OFF（発話が終われば自動停止）
+document.getElementById('mic-round-btn').addEventListener('click', () => {
   if (isListening) {
     try { recognition && recognition.stop(); } catch(e){}
-    // onend が結果なし判定を担当
+  } else {
+    startMicModal();
   }
-}
-micRoundBtn.addEventListener('pointerup',     stopMicOnRelease);
-micRoundBtn.addEventListener('pointercancel', stopMicOnRelease);
+});
 
 document.getElementById('btn-next').addEventListener('click', nextCard);
 document.getElementById('btn-home').addEventListener('click', () => showScreen('screen-home'));
