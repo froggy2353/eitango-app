@@ -403,25 +403,27 @@
   /* waveform */
   .mic-waveform {
     display: flex; align-items: center; justify-content: center;
-    gap: 5px; height: 48px;
+    gap: 5px; height: 52px;
   }
   .wave-bar {
-    width: 5px; height: 32px; border-radius: 3px;
+    width: 5px; height: 44px; border-radius: 3px;
     background: var(--teal-light);
-    transform: scaleY(0.2); transform-origin: center;
+    transform: scaleY(0.12); transform-origin: center;
+    transition: background 0.2s;
   }
   .mic-waveform.active .wave-bar {
-    animation: soundwave 0.65s ease-in-out infinite alternate;
+    background: var(--teal);
+    animation: soundwave var(--dur, 0.65s) ease-in-out infinite alternate;
   }
-  .wave-bar:nth-child(1) { animation-delay: 0.00s; }
-  .wave-bar:nth-child(2) { animation-delay: 0.10s; }
-  .wave-bar:nth-child(3) { animation-delay: 0.20s; }
-  .wave-bar:nth-child(4) { animation-delay: 0.05s; }
-  .wave-bar:nth-child(5) { animation-delay: 0.15s; }
-  .wave-bar:nth-child(6) { animation-delay: 0.25s; }
-  .wave-bar:nth-child(7) { animation-delay: 0.08s; }
+  .wave-bar:nth-child(1) { --dur: 0.50s; animation-delay: 0.00s; }
+  .wave-bar:nth-child(2) { --dur: 0.70s; animation-delay: 0.09s; }
+  .wave-bar:nth-child(3) { --dur: 0.44s; animation-delay: 0.18s; }
+  .wave-bar:nth-child(4) { --dur: 0.76s; animation-delay: 0.04s; }
+  .wave-bar:nth-child(5) { --dur: 0.57s; animation-delay: 0.14s; }
+  .wave-bar:nth-child(6) { --dur: 0.63s; animation-delay: 0.22s; }
+  .wave-bar:nth-child(7) { --dur: 0.41s; animation-delay: 0.07s; }
   @keyframes soundwave {
-    from { transform: scaleY(0.2); }
+    from { transform: scaleY(0.12); }
     to   { transform: scaleY(1.0); }
   }
 
@@ -612,7 +614,7 @@
       <span class="wave-bar"></span><span class="wave-bar"></span>
       <span class="wave-bar"></span>
     </div>
-    <p class="mic-status-text" id="mic-status-text">🎙 マイクボタンを おしてね</p>
+    <p class="mic-status-text" id="mic-status-text">おしながら はなしてね 🎙</p>
     <button class="mic-round-btn" id="mic-round-btn" aria-label="はつおん">🎤</button>
 
     <!-- きいた言葉 -->
@@ -871,9 +873,10 @@ function setMicState(state) {
     waveEl.classList.remove('active');
     statusEl.textContent = state === 'processing'
       ? '⏳ かんがえてるよ...'
-      : '🎙 マイクボタンを おしてね';
+      : 'おしながら はなしてね 🎙';
     btnEl.classList.remove('listening');
     btnEl.innerHTML = '🎤';
+    statusEl.textContent = 'おしながら はなしてね 🎙';
   }
 }
 
@@ -888,11 +891,14 @@ function startMicModal() {
   recognition.lang = 'en-US';
   recognition.interimResults = false;
   recognition.maxAlternatives = 5;
+  recognition.continuous = true; // 押している間ずっとリスニング
 
   let gotResult = false;
 
   recognition.onresult = (e) => {
+    if (gotResult) return;
     gotResult = true;
+    try { recognition.stop(); } catch(e){}
     const results = Array.from(e.results[0]).map(r => r.transcript.trim().toLowerCase());
     const target = words[index].en.toLowerCase().replace(/\s+/g, ' ');
     const ok = results.some(r => r === target || r.replace(/\s+/g, '') === target.replace(/\s+/g, ''));
@@ -1102,23 +1108,28 @@ document.getElementById('btn-mic').addEventListener('click', () => {
 document.getElementById('mic-modal-close').addEventListener('click', closeMicModal);
 document.getElementById('mic-modal-done').addEventListener('click', closeMicModal);
 document.getElementById('mic-modal-retry').addEventListener('click', () => {
-  renderLetterBoxes(words[index].en, null); // グレーにリセット
+  renderLetterBoxes(words[index].en, null);
   document.getElementById('pronunciation-score').style.display = 'none';
   document.getElementById('heard-label').textContent = '';
   document.getElementById('mic-modal-actions').classList.remove('show');
   micModalLastResult = null;
-  startMicModal(); // ユーザーのジェスチャー内
+  setMicState('idle');
 });
-// ラウンドボタン（リスニング中はストップ、それ以外は開始）
-document.getElementById('mic-round-btn').addEventListener('click', () => {
+
+// ラウンドボタン：押している間だけ録音
+const micRoundBtn = document.getElementById('mic-round-btn');
+micRoundBtn.addEventListener('pointerdown', (e) => {
+  e.preventDefault();
+  if (!isListening) startMicModal();
+});
+function stopMicOnRelease() {
   if (isListening) {
     try { recognition && recognition.stop(); } catch(e){}
-    isListening = false;
-    setMicState('idle');
-  } else {
-    startMicModal();
+    // onend が結果なし判定を担当
   }
-});
+}
+micRoundBtn.addEventListener('pointerup',     stopMicOnRelease);
+micRoundBtn.addEventListener('pointercancel', stopMicOnRelease);
 
 document.getElementById('btn-next').addEventListener('click', nextCard);
 document.getElementById('btn-home').addEventListener('click', () => showScreen('screen-home'));
