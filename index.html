@@ -900,16 +900,29 @@ function setMicState(state) {
   }
 }
 
-function startMicModal() {
+async function startMicModal() {
   if (!SR) return;
   if (isListening) { try { recognition && recognition.stop(); } catch(e){} isListening = false; }
 
   // iOS: TTSとSTTは同時使用不可 → 先にキャンセル
   try { window.speechSynthesis && window.speechSynthesis.cancel(); } catch(e){}
 
+  // iOS: 毎回 getUserMedia でオーディオセッションをリフレッシュする
+  // → 2回目以降も recognition.start() が正常に動作する
+  try {
+    if (micStream) { micStream.getTracks().forEach(t => t.stop()); micStream = null; }
+    micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+  } catch(e) {
+    if (e.name === 'NotAllowedError' || e.name === 'PermissionDeniedError') {
+      document.getElementById('mic-status-text').textContent = 'マイクを許可してね ⚠️';
+      return;
+    }
+  }
+
   recognition = new SR();
   recognition.lang = 'en-US';
   recognition.interimResults = false;
+  recognition.continuous = true;  // iOS: 無音タイムアウトによる自動停止を防ぐ
   recognition.maxAlternatives = 5;
   let gotResult = false;
 
@@ -1135,11 +1148,11 @@ document.getElementById('mic-modal-retry').addEventListener('click', () => {
 // ラウンドボタン：タップでON/OFF（発話が終われば自動停止）
 // click を使用（iOS Speech API はユーザージェスチャーとして click が必要）
 // ゴーストクリックは openMicModal() の pointer-events:none で防ぐ
-document.getElementById('mic-round-btn').addEventListener('click', () => {
+document.getElementById('mic-round-btn').addEventListener('click', async () => {
   if (isListening) {
     try { recognition && recognition.stop(); } catch(e){}
   } else {
-    startMicModal();
+    await startMicModal();
   }
 });
 
