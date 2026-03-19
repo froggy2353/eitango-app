@@ -953,6 +953,8 @@ function ctcForcedAlign(logitsFlat, T, V, targetIds, blankId) {
 
   // 後ろ向きトレースバック
   const charLPs = Array.from({ length: S }, () => []);
+  // 各文字位置で「実際に最も確率が高かった語彙ID」の票数
+  const charBestVotes = Array.from({ length: S }, () => new Float64Array(V).fill(0));
   let s = S;
   for (let t = T; t >= 1 && s > 0; t--) {
     const off = (t - 1) * V;
@@ -960,11 +962,22 @@ function ctcForcedAlign(logitsFlat, T, V, targetIds, blankId) {
     const via_blank = alphaTable[t - 1][s] + lsp[off + blankId];
     if (via_char >= via_blank && alphaTable[t - 1][s - 1] > NEG_INF) {
       charLPs[s - 1].push(lsp[off + targetIds[s - 1]]);
+      // このフレームで最も確率が高いIDに票を入れる
+      let bestV = 0;
+      for (let v = 1; v < V; v++) if (lsp[off + v] > lsp[off + bestV]) bestV = v;
+      if (bestV !== blankId) charBestVotes[s - 1][bestV]++;
       s--;
     }
   }
-  return charLPs.map(lps =>
-    lps.length > 0 ? lps.reduce((a, b) => a + b) / lps.length : -10);
+  const charBestIds = charBestVotes.map(votes => {
+    let best = -1, bestCount = 0;
+    for (let v = 0; v < V; v++) if (votes[v] > bestCount) { bestCount = votes[v]; best = v; }
+    return best; // -1 = 情報なし
+  });
+  return {
+    lps: charLPs.map(lps => lps.length > 0 ? lps.reduce((a, b) => a + b) / lps.length : -10),
+    charBestIds,
+  };
 }
 
 // log確率 [-4, 0] → スコア [0, 100]
@@ -1025,35 +1038,20 @@ async function assessPronunciation(audioBlob, word) {
     return { chars, score: 50 };
   }
 
-  const charLPs = ctcForcedAlign(logits.data, T, V, targetIds, blankId);
+  const { lps: charLPs, charBestIds } = ctcForcedAlign(logits.data, T, V, targetIds, blankId);
 
+  const idToChar = Object.fromEntries(Object.entries(vocab).map(([k, v]) => [v, k]));
   const chars = [];
   let idx = 0;
   for (const c of word) {
     if (c === ' ') continue;
-    chars.push({ char: c, score: lpToScore(charLPs[idx++] ?? -10) });
+    const bestId = charBestIds[idx];
+    const heard = bestId >= 0 ? (idToChar[bestId] || null) : null;
+    chars.push({ char: c, score: lpToScore(charLPs[idx++] ?? -10), heard });
   }
   const score = Math.round(chars.reduce((a, b) => a + b.score, 0) / chars.length);
 
-  // Greedy CTC decode: 「実際に聞こえた文字」を取得（IPA比較用）
-  const idToChar = Object.fromEntries(Object.entries(vocab).map(([k,v])=>[v,k]));
-  let prevId = -1;
-  const decodedArr = [];
-  for (let t = 0; t < T; t++) {
-    let maxId = 0, maxVal = -Infinity;
-    for (let v = 0; v < V; v++) {
-      const val = logits.data[t * V + v];
-      if (val > maxVal) { maxVal = val; maxId = v; }
-    }
-    if (maxId !== blankId && maxId !== prevId) {
-      const ch = idToChar[maxId];
-      if (ch && ch !== '<unk>' && ch !== '|') decodedArr.push(ch);
-    }
-    prevId = maxId;
-  }
-  const decoded = decodedArr.join('');
-
-  return { chars, score, decoded };
+  return { chars, score };
 }
 
 // ===== KANA HINTS =====
@@ -1113,7 +1111,7 @@ function scorePronunciation(target, heard) {
 }
 
 // IPA 発音記号比較パネルを表示
-function showIPACompare(word, chars, decoded) {
+function showIPACompare(word, chars) {
   const el = document.getElementById('ipa-compare');
   const ipaChars = WORD_IPA[word];
   const nonSpaceLen = word.replace(/ /g, '').length;
@@ -1132,36 +1130,22 @@ function showIPACompare(word, chars, decoded) {
     return `<span class="ipa-cell ${cls}">${ipa ? '/'+ipa+'/' : '・'}</span>`;
   }).join('');
 
-  // greedy decode の信頼性チェック: Levenshtein距離が目標長の50%以内のみ表示
-  const targetUpper = word.replace(/ /g, '').toUpperCase();
-  function levenshtein(a, b) {
-    const dp = Array.from({length: a.length+1}, (_, i) =>
-      Array.from({length: b.length+1}, (_, j) => i === 0 ? j : j === 0 ? i : 0));
-    for (let i = 1; i <= a.length; i++)
-      for (let j = 1; j <= b.length; j++)
-        dp[i][j] = a[i-1] === b[j-1] ? dp[i-1][j-1]
-          : 1 + Math.min(dp[i-1][j], dp[i][j-1], dp[i-1][j-1]);
-    return dp[a.length][b.length];
-  }
-  const editDist = decoded.length > 0 ? levenshtein(decoded, targetUpper) : Infinity;
-  const decodedIsPlausible = editDist <= Math.floor(targetUpper.length / 2);
-
-  // じぶん行: greedy decode した文字を IPA に変換（信頼できる場合のみ）
-  let decodedHtml = '';
-  if (decodedIsPlausible) {
-    const decodedCells = decoded.split('').map((c, pos) => {
-      const ipa = CHAR_TO_IPA[c.toUpperCase()] || c.toLowerCase();
-      const targetIpa = ipaChars[pos];
-      const isDiff = ipa && targetIpa && ipa !== targetIpa;
-      return `<span class="ipa-cell${isDiff ? ' diff' : ''}">${ipa ? '/'+ipa+'/' : '?'}</span>`;
-    }).join('');
-    decodedHtml = `
+  // じぶん行: forced alignment の各文字位置で実際に聞こえた文字のIPA
+  const decodedCells = ipaChars.map((targetIpa, i) => {
+    const heard = chars[i]?.heard;
+    if (!heard || heard === '|' || heard === '<unk>') {
+      return `<span class="ipa-cell" style="color:#bbb">？</span>`;
+    }
+    const ipa = CHAR_TO_IPA[heard.toUpperCase()] || heard.toLowerCase();
+    const isDiff = targetIpa && ipa !== targetIpa;
+    return `<span class="ipa-cell${isDiff ? ' diff' : ''}">${ipa ? '/'+ipa+'/' : '？'}</span>`;
+  }).join('');
+  const decodedHtml = `
     <div class="ipa-separator"></div>
     <div class="ipa-row">
       <span class="ipa-label">じぶん</span>
       <div class="ipa-cells">${decodedCells}</div>
     </div>`;
-  }
 
   el.innerHTML = `
     <div class="ipa-row">
@@ -1345,7 +1329,7 @@ function stopMicRecording() {
 
 // バックエンドからの発音スコアで文字ボックスを色付け
 function showMicModalResultFromBackend(result, word) {
-  const { chars, score, decoded = '' } = result;
+  const { chars, score } = result;
   const ok = score >= 70;
   if (ok) correctCount++;
   micModalLastResult = { ok, heard: word };
@@ -1381,7 +1365,7 @@ function showMicModalResultFromBackend(result, word) {
   document.getElementById('mic-modal-actions').classList.add('show');
 
   // IPA 比較パネルを表示
-  showIPACompare(word, chars, decoded);
+  showIPACompare(word, chars);
 
   // 聴き比べボタンを表示
   document.getElementById('compare-btns').style.display = 'flex';
