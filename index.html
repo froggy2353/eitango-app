@@ -966,13 +966,14 @@ function ctcForcedAlign(logitsFlat, T, V, targetIds, blankId) {
     }
   }
 
-  // 各文字の遷移フレーム周辺 ±windowSize フレームで実際に最多だった語彙IDを集計
-  const windowSize = 8;
-  const charBestIds = charTransFrames.map(tf => {
+  // 各文字の遷移フレームから非重複区間を定義して最多argmaxを集計
+  // 区間: [前文字の遷移フレーム+1, 自分の遷移フレーム] (重複なし)
+  const charBestIds = charTransFrames.map((tf, si) => {
     if (tf < 0) return -1;
+    const lo = si === 0 ? 0 : (charTransFrames[si - 1] >= 0 ? charTransFrames[si - 1] + 1 : 0);
+    const hi = tf;
+    if (lo > hi) return -1;
     const votes = new Float64Array(V);
-    const lo = Math.max(0, tf - windowSize);
-    const hi = Math.min(T - 1, tf + windowSize);
     for (let t2 = lo; t2 <= hi; t2++) {
       const off = t2 * V;
       let bestV = 0;
