@@ -491,10 +491,18 @@
   .ipa-cell.ok      { border-color: #4caf50; color: #2e7d32; background: #e8f5e9; }
   .ipa-cell.partial { border-color: #ffb300; color: #e65100; background: #fff8e1; }
   .ipa-cell.ng      { border-color: #e53935; color: #c62828; background: #ffebee; }
-  .ipa-cell.diff    { border-color: #e53935; color: #c62828; background: #ffebee; }
-  .ipa-separator {
-    width: 100%; height: 1px; background: #e0e0e0; margin: 1px 0;
+  .ipa-cell { cursor: pointer; }
+  .ipa-cell:active { opacity: 0.65; }
+
+  /* 発音ヒントボックス */
+  .hint-box {
+    font-size: 0.83rem; color: #444; text-align: center;
+    padding: 8px 12px; background: #f0faf9; border-radius: 12px;
+    border: 1.5px solid #b2ebe7;
+    width: 100%; max-width: 320px;
+    display: none; line-height: 1.5;
   }
+  .hint-box.show { display: block; }
 
   /* ===== 聴き比べボタン ===== */
   .compare-btns {
@@ -686,6 +694,9 @@
 
     <!-- IPA 発音記号比較パネル -->
     <div class="ipa-compare" id="ipa-compare" style="display:none"></div>
+
+    <!-- タップ時の発音ヒント -->
+    <div class="hint-box" id="hint-box"></div>
 
     <!-- 聴き比べボタン -->
     <div class="compare-btns" id="compare-btns" style="display:none">
@@ -1121,49 +1132,102 @@ function scorePronunciation(target, heard) {
   return { score, charResults };
 }
 
-// IPA 発音記号比較パネルを表示
+// IPA 音素→日本語ヒント
+const IPA_HINTS = {
+  'æ':  '「ア」口を大きく横に広げて。日本語の「ア」より口が横に開く',
+  'ɛ':  '「エ」口を少し横に開けて。日本語の「エ」に近い',
+  'ɪ':  '「イ」短く弱く。「イ」をサッと言う感じ',
+  'iː': '「イー」唇を横に引いて長く伸ばす',
+  'ɒ':  '「オ」口を丸く大きく開けて。日本語の「オ」より大きく',
+  'ɔ':  '「オ」口を丸く開けて、少し長め',
+  'ʌ':  '「ア」口をあまり開けず、真ん中からポンと出す',
+  'ɑ':  '「ア」口を大きく開けて。お医者さんに「アー」と言う感じ',
+  'ə':  '「ア」弱く短く。力を抜いてポソッと言う（シュワー音）',
+  'ɜ':  '「アー」口を少し開けて、舌をどこにもつけずに',
+  'uː': '「ウー」唇を丸めてすぼめて長く伸ばす',
+  'ʊ':  '「ウ」唇を丸めて短く。力を抜いてサッと',
+  'aɪ': '「アイ」アから始めてイへ滑らかに移る',
+  'eɪ': '「エイ」エから始めてイへ滑らかに移る',
+  'aʊ': '「アウ」アから始めてウへ滑らかに移る',
+  'p':  '「プ」唇をしっかり閉じて、パッと開く（息のみ）',
+  'b':  '「ブ」唇をしっかり閉じて、声を出してバッと開く',
+  't':  '「ト」舌先を上の歯の裏につけてパッとはなす（息のみ）',
+  'd':  '「ド」舌先を上の歯の裏につけて、声を出してはなす',
+  'k':  '「ク」喉の奥（舌の根元）でパッと止めて息を出す',
+  'ɡ':  '「グ」喉の奥（舌の根元）で声を出す',
+  'f':  '「フ」上の前歯を下唇に軽くあて、息を出す',
+  'v':  '「ヴ」上の前歯を下唇に軽くあて、声を振動させる',
+  's':  '「ス」歯をほぼ閉じて息だけシューッと出す',
+  'z':  '「ズ」歯をほぼ閉じて声を振動させてシューッ',
+  'θ':  '上下の歯の間に舌先を少し出して、息を出す（thの音）',
+  'ʃ':  '「シュ」唇を少し丸めて、息をシューッと出す',
+  'h':  '「ハ」喉から息を出すだけ。ため息のように',
+  'm':  '「ム」唇を閉じたまま、鼻から声を出す',
+  'n':  '「ン」舌先を上の歯の裏につけたまま、鼻から声を出す',
+  'ŋ':  '「ング」舌の根元を上あごにつけたまま、鼻から声を出す',
+  'l':  '「ル」舌先を上の歯の裏につけたまま声を出す。舌を離さない',
+  'r':  '「ル」舌をどこにもつけず、少し巻いて声を出す',
+  'w':  '「ウ」唇を丸めてすぼめてから、すぐ次の音へ',
+  'j':  '「ユ」舌の真ん中を上あごに近づけて「ヤ行」の音',
+  'tʃ': '「チ」舌を上につけてから、息を出す',
+  'dʒ': '「ジ」舌を上につけてから、声を出す',
+  'ts': '「ツ」舌先を上の歯の裏につけてパッとはなす',
+};
+
+// IPA 発音記号比較パネルを表示（ELSAスタイル：お手本のみ、タップでヒント）
 function showIPACompare(word, chars) {
   const el = document.getElementById('ipa-compare');
+  const hintBox = document.getElementById('hint-box');
   const ipaChars = WORD_IPA[word];
   const nonSpaceLen = word.replace(/ /g, '').length;
+
+  hintBox.classList.remove('show');
 
   if (!ipaChars || ipaChars.length !== nonSpaceLen) {
     el.style.display = 'none';
     return;
   }
 
-  // お手本行: IPA をスコアで色付け
+  // お手本行: IPA をスコアで色付け（タップでヒント）
   const targetCells = ipaChars.map((ipa, i) => {
     const charData = chars[i];
     const cls = !charData ? 'ng'
       : charData.score >= 70 ? 'ok'
       : charData.score >= 50 ? 'partial' : 'ng';
-    return `<span class="ipa-cell ${cls}">${ipa ? '/'+ipa+'/' : '・'}</span>`;
+    const charLetter = word.replace(/ /g, '')[i] || '';
+    return `<span class="ipa-cell ${cls}" data-ipa="${ipa}" data-char="${charLetter}" data-score="${charData?.score ?? 0}">${ipa ? '/'+ipa+'/' : '・'}</span>`;
   }).join('');
-
-  // じぶん行: forced alignment の各文字位置で実際に聞こえた文字のIPA
-  const decodedCells = ipaChars.map((targetIpa, i) => {
-    const heard = chars[i]?.heard;
-    if (!heard || heard === '|' || heard === '<unk>') {
-      return `<span class="ipa-cell" style="color:#bbb">？</span>`;
-    }
-    const ipa = CHAR_TO_IPA[heard.toUpperCase()] || heard.toLowerCase();
-    const isDiff = targetIpa && ipa !== targetIpa;
-    return `<span class="ipa-cell${isDiff ? ' diff' : ''}">${ipa ? '/'+ipa+'/' : '？'}</span>`;
-  }).join('');
-  const decodedHtml = `
-    <div class="ipa-separator"></div>
-    <div class="ipa-row">
-      <span class="ipa-label">じぶん</span>
-      <div class="ipa-cells">${decodedCells}</div>
-    </div>`;
 
   el.innerHTML = `
     <div class="ipa-row">
       <span class="ipa-label">お手本</span>
-      <div class="ipa-cells">${targetCells}</div>
-    </div>${decodedHtml}`;
+      <div class="ipa-cells" id="ipa-cells-target">${targetCells}</div>
+    </div>`;
   el.style.display = 'flex';
+
+  // タップ → ヒント表示
+  el.querySelectorAll('.ipa-cell').forEach(cell => {
+    cell.addEventListener('click', () => {
+      const ipa = cell.dataset.ipa;
+      const ch = cell.dataset.char;
+      const hint = IPA_HINTS[ipa];
+      if (!hint) return;
+      hintBox.textContent = `「${ch}」の音: ${hint}`;
+      hintBox.classList.add('show');
+    });
+  });
+
+  // 最初に弱い音素のヒントを自動表示
+  const weakIdx = ipaChars.findIndex((_, i) => (chars[i]?.score ?? 100) < 70);
+  if (weakIdx >= 0) {
+    const ipa = ipaChars[weakIdx];
+    const ch = word.replace(/ /g, '')[weakIdx] || '';
+    const hint = IPA_HINTS[ipa];
+    if (hint) {
+      hintBox.textContent = `「${ch}」の音: ${hint}`;
+      hintBox.classList.add('show');
+    }
+  }
 }
 
 // レターボックスを描画（result なければグレー）
@@ -1210,6 +1274,7 @@ function openMicModal() {
   document.getElementById('pronunciation-score').style.display = 'none';
   document.getElementById('heard-label').textContent = '';
   document.getElementById('ipa-compare').style.display = 'none';
+  document.getElementById('hint-box').classList.remove('show');
   document.getElementById('mic-modal-actions').classList.remove('show');
   micModalLastResult = null;
   setMicState('idle');
@@ -1235,6 +1300,7 @@ function closeMicModal() {
   stopCompareAudio();
   document.getElementById('compare-btns').style.display = 'none';
   document.getElementById('ipa-compare').style.display = 'none';
+  document.getElementById('hint-box').classList.remove('show');
   // quiz本体のバッジに最終結果を反映
   if (micModalLastResult) {
     const el = document.getElementById('mic-result');
@@ -1367,11 +1433,12 @@ function showMicModalResultFromBackend(result, word) {
   const totalDelay = Math.max(0, bi - 1) * 110 + 400;
   setTimeout(() => showScore(score), totalDelay);
 
-  // 詳細フィードバック（苦手な音を表示）
-  const weakChars = (chars || []).filter(c => c.score < 70).map(c => c.char).join(', ');
-  document.getElementById('heard-label').textContent = weakChars
-    ? `「${weakChars}」の おとを れんしゅうしよう！`
-    : ok ? '🎉 じょうず！' : '🔄 もういちど やってみよう';
+  // 結果メッセージ（ヒントはIPAパネルのタップで表示）
+  document.getElementById('heard-label').textContent =
+    score >= 90 ? '🎉 すばらしい！'
+    : score >= 70 ? '👍 いい感じ！'
+    : score >= 50 ? '📖 IPAをタップして練習しよう'
+    : '🔄 もういちど やってみよう';
 
   document.getElementById('mic-modal-actions').classList.add('show');
 
@@ -1416,9 +1483,11 @@ function showMicModalResult(ok, heard) {
   const totalDelay = (bi - 1) * 110 + 400;
   setTimeout(() => showScore(score), totalDelay);
 
-  // きいた言葉
   document.getElementById('heard-label').textContent =
-    heard === 'きこえなかったよ' ? '（きこえなかったよ）' : `「${heard}」と きこえたよ`;
+    heard === 'きこえなかったよ' ? '（きこえなかったよ）'
+    : score === 100 ? '🎉 すばらしい！'
+    : score >= 70 ? '👍 いい感じ！'
+    : '🔄 もういちど やってみよう';
 
   actionsEl.classList.add('show');
 
