@@ -951,10 +951,9 @@ function ctcForcedAlign(logitsFlat, T, V, targetIds, blankId) {
     }
   }
 
-  // 後ろ向きトレースバック
+  // 後ろ向きトレースバック: 各文字の遷移フレームを特定
   const charLPs = Array.from({ length: S }, () => []);
-  // 各文字位置で「実際に最も確率が高かった語彙ID」の票数
-  const charBestVotes = Array.from({ length: S }, () => new Float64Array(V).fill(0));
+  const charTransFrames = new Array(S).fill(-1); // 各文字が遷移したフレーム番号
   let s = S;
   for (let t = T; t >= 1 && s > 0; t--) {
     const off = (t - 1) * V;
@@ -962,18 +961,29 @@ function ctcForcedAlign(logitsFlat, T, V, targetIds, blankId) {
     const via_blank = alphaTable[t - 1][s] + lsp[off + blankId];
     if (via_char >= via_blank && alphaTable[t - 1][s - 1] > NEG_INF) {
       charLPs[s - 1].push(lsp[off + targetIds[s - 1]]);
-      // このフレームで最も確率が高いIDに票を入れる
-      let bestV = 0;
-      for (let v = 1; v < V; v++) if (lsp[off + v] > lsp[off + bestV]) bestV = v;
-      if (bestV !== blankId) charBestVotes[s - 1][bestV]++;
+      charTransFrames[s - 1] = t - 1; // 0-indexed
       s--;
     }
   }
-  const charBestIds = charBestVotes.map(votes => {
+
+  // 各文字の遷移フレーム周辺 ±windowSize フレームで実際に最多だった語彙IDを集計
+  const windowSize = 8;
+  const charBestIds = charTransFrames.map(tf => {
+    if (tf < 0) return -1;
+    const votes = new Float64Array(V);
+    const lo = Math.max(0, tf - windowSize);
+    const hi = Math.min(T - 1, tf + windowSize);
+    for (let t2 = lo; t2 <= hi; t2++) {
+      const off = t2 * V;
+      let bestV = 0;
+      for (let v = 1; v < V; v++) if (lsp[off + v] > lsp[off + bestV]) bestV = v;
+      if (bestV !== blankId) votes[bestV]++;
+    }
     let best = -1, bestCount = 0;
     for (let v = 0; v < V; v++) if (votes[v] > bestCount) { bestCount = votes[v]; best = v; }
-    return best; // -1 = 情報なし
+    return best;
   });
+
   return {
     lps: charLPs.map(lps => lps.length > 0 ? lps.reduce((a, b) => a + b) / lps.length : -10),
     charBestIds,
