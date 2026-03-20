@@ -626,6 +626,22 @@
     font-family: 'Zen Maru Gothic', sans-serif;
   }
   .btn-settings-save:active { opacity: 0.85; }
+  .btn-azure-test {
+    background: #fff; color: var(--teal-dark);
+    border: 2px solid var(--teal-light); border-radius: 14px;
+    padding: 10px; font-size: 0.88rem; font-weight: 700;
+    cursor: pointer; width: 100%;
+    font-family: 'Zen Maru Gothic', sans-serif;
+    transition: background .15s;
+  }
+  .btn-azure-test:active { background: var(--teal-pale); }
+  .btn-azure-test:disabled { opacity: 0.5; cursor: not-allowed; }
+  .azure-test-result {
+    font-size: 0.82rem; padding: 8px 12px; border-radius: 10px;
+    text-align: center; display: none;
+  }
+  .azure-test-result.ok  { background: #e8f5e9; color: #2e7d32; display: block; }
+  .azure-test-result.err { background: #fce4ec; color: #c62828; display: block; }
 
 
   .img-loader {
@@ -814,6 +830,8 @@
         設定するとWav2Vec2のかわりにAzure APIで評価します（音素レベル精度）<br>
         未設定の場合はブラウザ内Wav2Vec2を使用します
       </p>
+      <button class="btn-azure-test" id="btn-azure-test">🔍 接続テスト</button>
+      <p class="azure-test-result" id="azure-test-result"></p>
     </div>
 
     <button class="btn-settings-save" id="btn-settings-save">保存してとじる</button>
@@ -1909,6 +1927,50 @@ document.getElementById('btn-next').addEventListener('click', nextCard);
 document.getElementById('btn-home').addEventListener('click', () => showScreen('screen-home'));
 
 // ===== SETTINGS MODAL =====
+async function testAzureConnection() {
+  const key    = document.getElementById('input-azure-key').value.trim();
+  const region = document.getElementById('input-azure-region').value.trim();
+  const resultEl = document.getElementById('azure-test-result');
+  const btn = document.getElementById('btn-azure-test');
+
+  if (!key || !region) {
+    resultEl.className = 'azure-test-result err';
+    resultEl.textContent = 'キーとリージョンを入力してください';
+    return;
+  }
+
+  btn.disabled = true;
+  btn.textContent = 'テスト中...';
+  resultEl.className = 'azure-test-result';
+  resultEl.textContent = '';
+
+  try {
+    const res = await fetch(
+      `https://${region}.api.cognitive.microsoft.com/sts/v1.0/issuetoken`,
+      { method: 'POST', headers: { 'Ocp-Apim-Subscription-Key': key } }
+    );
+    if (res.ok) {
+      resultEl.className = 'azure-test-result ok';
+      resultEl.textContent = '✅ 接続成功！Azure Speech Serviceが使えます';
+    } else if (res.status === 401) {
+      resultEl.className = 'azure-test-result err';
+      resultEl.textContent = `❌ 認証エラー (401): サブスクリプションキーが正しくありません`;
+    } else if (res.status === 403) {
+      resultEl.className = 'azure-test-result err';
+      resultEl.textContent = `❌ アクセス拒否 (403): キーまたはリージョンが間違っています`;
+    } else {
+      resultEl.className = 'azure-test-result err';
+      resultEl.textContent = `❌ エラー (HTTP ${res.status}): リージョン名を確認してください`;
+    }
+  } catch (e) {
+    resultEl.className = 'azure-test-result err';
+    resultEl.textContent = `❌ 接続失敗: リージョン名が正しくないかネットワークエラーです`;
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '🔍 接続テスト';
+  }
+}
+
 function updateAzureBadge() {
   const badge = document.getElementById('azure-status-badge');
   if (AZURE_SPEECH_KEY && AZURE_SPEECH_REGION) {
@@ -1939,6 +2001,8 @@ document.getElementById('settings-btn').addEventListener('click', openSettingsMo
 document.getElementById('settings-modal').addEventListener('click', (e) => {
   if (e.target === e.currentTarget) closeSettingsModal();
 });
+document.getElementById('btn-azure-test').addEventListener('click', testAzureConnection);
+
 document.getElementById('btn-settings-save').addEventListener('click', () => {
   AZURE_SPEECH_KEY    = document.getElementById('input-azure-key').value.trim();
   AZURE_SPEECH_REGION = document.getElementById('input-azure-region').value.trim();
