@@ -1559,6 +1559,10 @@ function setMicState(state) {
 }
 
 async function startMicModal() {
+  if (isListening) return;  // 二重起動防止
+  isListening = true;
+  setMicState('listening');  // getUserMedia 待ち中も視覚的フィードバック
+
   // iOS: TTSと同時使用不可 → 先にキャンセル
   try { window.speechSynthesis && window.speechSynthesis.cancel(); } catch(e){}
 
@@ -1617,8 +1621,6 @@ async function startMicModal() {
     };
 
     mediaRecorder.start();
-    isListening = true;
-    setMicState('listening');
 
     // 5秒後に自動停止（マイクも同時解放）
     setTimeout(() => {
