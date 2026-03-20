@@ -370,24 +370,6 @@
     letter-spacing: 0.08em; text-align: center; margin-top: -4px;
   }
 
-  /* ===== SCORE ===== */
-  .pronunciation-score {
-    display: flex; align-items: baseline; gap: 3px;
-    animation: scorePopIn 0.45s cubic-bezier(.17,.67,.46,1.5);
-  }
-  .score-number {
-    font-family: 'Fredoka', sans-serif;
-    font-size: 3.2rem; font-weight: 700; line-height: 1;
-  }
-  .score-unit { font-size: 1rem; font-weight: 700; color: #999; }
-  .score-perfect { color: #4caf50; }
-  .score-good    { color: #ff9800; }
-  .score-try     { color: #e53935; }
-  @keyframes scorePopIn {
-    0%   { transform: scale(0.4); opacity: 0; }
-    100% { transform: scale(1);   opacity: 1; }
-  }
-
   /* きいた言葉 */
   .heard-label {
     font-size: 0.88rem; color: #aaa; font-weight: 600;
@@ -468,6 +450,14 @@
   .btn-done {
     background: var(--teal); color: #fff;
     border: 3px solid var(--teal); flex: 1;
+  }
+  .btn-modal-retry {
+    width: 100%; max-width: 280px;
+    background: var(--teal-pale); color: var(--teal-dark);
+    border: 3px solid var(--teal-light);
+    font-size: 1rem; font-weight: 700;
+    padding: 12px 0; border-radius: 999px;
+    margin-top: 4px;
   }
 
   /* ===== IPA 発音記号比較 ===== */
@@ -759,11 +749,6 @@
     <div class="letter-boxes" id="letter-boxes"></div>
     <p class="kana-hint" id="kana-hint" style="display:none"></p>
 
-    <!-- スコア（結果後に表示） -->
-    <div class="pronunciation-score" id="pronunciation-score" style="display:none">
-      <span class="score-number" id="score-number">100</span><span class="score-unit">てん</span>
-    </div>
-
     <!-- 波形 -->
     <div class="mic-waveform" id="mic-waveform">
       <span class="wave-bar"></span><span class="wave-bar"></span>
@@ -795,6 +780,9 @@
         <span class="compare-label">じぶん</span>
       </button>
     </div>
+
+    <!-- 再トライボタン（評価後に表示） -->
+    <button class="btn btn-modal-retry" id="btn-modal-retry" style="display:none">🔄 もういちど</button>
 
     <div class="mic-modal-actions" id="mic-modal-actions"></div>
   </div>
@@ -1461,15 +1449,6 @@ function renderLetterBoxes(word, charResults) {
   }).join('');
 }
 
-// スコアを表示しアニメーション
-function showScore(score) {
-  const el = document.getElementById('pronunciation-score');
-  const num = document.getElementById('score-number');
-  num.textContent = score;
-  num.className = 'score-number ' +
-    (score === 100 ? 'score-perfect' : score >= 70 ? 'score-good' : 'score-try');
-  el.style.display = 'flex';
-}
 
 // ===== MIC MODAL =====
 let micModalLastResult = null;
@@ -1492,11 +1471,13 @@ function openMicModal() {
   const word = words[index];
   renderLetterBoxes(word.en, null);
   document.getElementById('kana-hint').textContent = KANA_HINTS[word.en] || '';
-  document.getElementById('pronunciation-score').style.display = 'none';
   document.getElementById('heard-label').textContent = '';
   document.getElementById('ipa-compare').style.display = 'none';
   document.getElementById('hint-box').classList.remove('show');
   document.getElementById('mic-modal-actions').classList.remove('show');
+  document.getElementById('compare-btns').style.display = 'none';
+  document.getElementById('btn-modal-retry').style.display = 'none';
+  document.getElementById('mic-round-btn').style.display = '';
   micModalLastResult = null;
   setMicState('idle');
   document.getElementById('mic-modal').setAttribute('aria-hidden', 'false');
@@ -1658,9 +1639,6 @@ function showMicModalResultFromBackend(result, word, engineUsed, blobSize) {
     setTimeout(() => { box.classList.add(cls); }, delay);
   });
 
-  const totalDelay = Math.max(0, bi - 1) * 110 + 400;
-  setTimeout(() => showScore(score), totalDelay);
-
   // 結果メッセージ（ヒントはIPAパネルのタップで表示）
   document.getElementById('heard-label').textContent =
     score >= 90 ? '🎉 すばらしい！'
@@ -1668,7 +1646,9 @@ function showMicModalResultFromBackend(result, word, engineUsed, blobSize) {
     : score >= 50 ? '📖 IPAをタップして練習しよう'
     : '🔄 もういちど やってみよう';
 
-  document.getElementById('mic-modal-actions').classList.add('show');
+  // マイクアイコンを隠し、再トライボタンを表示
+  document.getElementById('mic-round-btn').style.display = 'none';
+  document.getElementById('btn-modal-retry').style.display = '';
 
   // IPA 比較パネルを表示
   showIPACompare(word, chars);
@@ -1701,17 +1681,15 @@ function showMicModalResult(ok, heard) {
     setTimeout(() => { box.classList.add(charResults[i] || 'ng'); }, delay);
   });
 
-  // スコアは全ボックス開示後に表示
-  const totalDelay = (bi - 1) * 110 + 400;
-  setTimeout(() => showScore(score), totalDelay);
-
   document.getElementById('heard-label').textContent =
     heard === 'きこえなかったよ' ? '（きこえなかったよ）'
     : score === 100 ? '🎉 すばらしい！'
     : score >= 70 ? '👍 いい感じ！'
     : '🔄 もういちど やってみよう';
 
-  actionsEl.classList.add('show');
+  // マイクアイコンを隠し、再トライボタンを表示
+  document.getElementById('mic-round-btn').style.display = 'none';
+  document.getElementById('btn-modal-retry').style.display = '';
 
 }
 
@@ -1910,6 +1888,9 @@ document.getElementById('btn-listen-me').addEventListener('click', () => {
   };
   _compareAudio.play().catch(() => setComparePlaying(null, false));
 });
+
+// 再トライボタン
+document.getElementById('btn-modal-retry').addEventListener('click', () => openMicModal());
 
 // モーダル内ボタン
 document.getElementById('mic-modal-close').addEventListener('click', closeMicModal);
