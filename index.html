@@ -1257,11 +1257,22 @@ async function assessWithAzure(audioBlob, word) {
   );
   if (!res.ok) throw new Error(`Azure HTTP ${res.status}`);
   const data = await res.json();
+  console.log('Azure response:', JSON.stringify(data));
 
   const best = data.NBest?.[0];
-  if (!best) throw new Error('Azure: no result');
+  if (!best) {
+    const status = data.RecognitionStatus || 'unknown';
+    throw new Error(`Azure: no result (${status})`);
+  }
 
-  const overallScore = Math.round(best.PronunciationAssessment?.AccuracyScore ?? 50);
+  const pa = best.PronunciationAssessment;
+  if (!pa) {
+    // 音声認識は成功したが発音評価が返ってこなかった
+    console.warn('Azure: PronunciationAssessment absent. best=', JSON.stringify(best));
+    throw new Error(`Azure: no PronunciationAssessment (recognized: "${best.Lexical}")`);
+  }
+
+  const overallScore = Math.round(pa.AccuracyScore ?? pa.PronScore ?? 50);
 
   // 全音素を順番通りに収集
   const azurePhonemes = (best.Words || []).flatMap(w =>
