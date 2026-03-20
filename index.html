@@ -301,7 +301,7 @@
   .mic-modal-card {
     background: #fff;
     border-radius: 28px 28px 0 0;
-    padding: 20px 24px 44px;
+    padding: 60px 24px 44px;
     width: 100%;
     max-width: 480px;
     display: flex;
@@ -316,9 +316,9 @@
     to   { transform: translateY(0);    opacity: 1;   }
   }
   .mic-modal-handle {
+    position: absolute; top: 12px; left: 50%; transform: translateX(-50%);
     width: 44px; height: 5px;
     background: #ddd; border-radius: 3px;
-    margin-bottom: 4px;
   }
   .mic-modal-close {
     position: absolute; top: 18px; right: 18px;
@@ -333,37 +333,37 @@
     font-size: 0.9rem; color: #aaa; font-weight: 600;
     letter-spacing: 0.05em; margin: 0;
   }
-  /* ===== LETTER BOXES (ELSA style) ===== */
+  /* ===== LETTER BOXES (ELSA style: no border) ===== */
   .letter-boxes {
-    display: flex; gap: 6px; justify-content: center;
-    flex-wrap: wrap; max-width: 100%; padding: 4px 0;
-    perspective: 600px;
+    display: flex; gap: 10px; justify-content: center;
+    flex-wrap: wrap; max-width: calc(100% - 44px); padding: 4px 0;
   }
   .letter-box {
-    min-width: 42px; height: 52px; padding: 0 6px;
-    border-radius: 12px;
-    display: flex; align-items: center; justify-content: center;
+    display: flex; flex-direction: column; align-items: center; gap: 4px;
+    min-width: 28px; padding: 0 4px; cursor: pointer;
+  }
+  .letter-char {
     font-family: 'Fredoka', sans-serif;
-    font-size: 1.9rem; font-weight: 700;
-    border: 3px solid #ddd; background: #f5f5f5; color: #c0c0c0;
+    font-size: 2.2rem; font-weight: 700; line-height: 1;
+    color: #ccc;
+    transition: color 0.2s;
   }
-  .letter-box.ok {
-    background: #e8f5e9; border-color: #4caf50; color: #2e7d32;
-    animation: popBox 0.35s cubic-bezier(.17,.67,.46,1.5);
+  .letter-ipa {
+    font-size: 0.8rem; font-weight: 600; font-family: serif;
+    color: #bbb; letter-spacing: 0;
+    transition: color 0.2s;
   }
-  .letter-box.ng {
-    background: #ffebee; border-color: #e53935; color: #c62828;
-    animation: popBox 0.35s cubic-bezier(.17,.67,.46,1.5);
-  }
-  .letter-box.partial {
-    background: #fff8e1; border-color: #ffb300; color: #e65100;
-    animation: popBox 0.35s cubic-bezier(.17,.67,.46,1.5);
-  }
-  @keyframes popBox {
-    0%   { transform: scale(1)    rotateX(0deg);   }
-    30%  { transform: scale(0.8)  rotateX(-90deg); }
-    60%  { transform: scale(1.15) rotateX(0deg);   }
-    100% { transform: scale(1)    rotateX(0deg);   }
+  .letter-box.ok   .letter-char { color: #2e7d32; animation: popChar 0.35s cubic-bezier(.17,.67,.46,1.5); }
+  .letter-box.ok   .letter-ipa  { color: #66bb6a; }
+  .letter-box.ng   .letter-char { color: #c62828; animation: popChar 0.35s cubic-bezier(.17,.67,.46,1.5); }
+  .letter-box.ng   .letter-ipa  { color: #ef5350; }
+  .letter-box.partial .letter-char { color: #e65100; animation: popChar 0.35s cubic-bezier(.17,.67,.46,1.5); }
+  .letter-box.partial .letter-ipa  { color: #ffb300; }
+  @keyframes popChar {
+    0%   { transform: scale(1);    }
+    40%  { transform: scale(0.75); }
+    70%  { transform: scale(1.2);  }
+    100% { transform: scale(1);    }
   }
   .kana-hint {
     font-size: 0.92rem; color: #bbb; font-weight: 600;
@@ -1406,44 +1406,28 @@ const IPA_HINTS = {
   'ts': '「ツ」舌先を上の歯の裏につけてパッとはなす',
 };
 
-// IPA 発音記号比較パネルを表示（ELSAスタイル：お手本のみ、タップでヒント）
+// レターボックスにタップ→ヒント機能を付与（IPA は既にインライン表示済み）
 function showIPACompare(word, chars) {
-  const el = document.getElementById('ipa-compare');
+  document.getElementById('ipa-compare').style.display = 'none';
   const hintBox = document.getElementById('hint-box');
-  const ipaChars = WORD_IPA[word];
-  const nonSpaceLen = word.replace(/ /g, '').length;
-
   hintBox.classList.remove('show');
 
-  if (!ipaChars || ipaChars.length !== nonSpaceLen) {
-    el.style.display = 'none';
-    return;
-  }
+  const ipaChars = WORD_IPA[word];
+  if (!ipaChars) return;
 
-  // お手本行: IPA をスコアで色付け（タップでヒント）
-  const targetCells = ipaChars.map((ipa, i) => {
-    const charData = chars[i];
-    const cls = !charData ? 'ng'
-      : charData.score >= 70 ? 'ok'
-      : charData.score >= 50 ? 'partial' : 'ng';
-    const charLetter = word.replace(/ /g, '')[i] || '';
-    return `<span class="ipa-cell ${cls}" data-ipa="${ipa}" data-char="${charLetter}" data-score="${charData?.score ?? 0}">${ipa ? '/'+ipa+'/' : '・'}</span>`;
-  }).join('');
-
-  el.innerHTML = `
-    <div class="ipa-row">
-      <div class="ipa-cells" id="ipa-cells-target">${targetCells}</div>
-    </div>`;
-  el.style.display = 'flex';
-
-  // タップ → ヒント表示
-  el.querySelectorAll('.ipa-cell').forEach(cell => {
-    cell.addEventListener('click', () => {
-      const ipa = cell.dataset.ipa;
-      const ch = cell.dataset.char;
+  // 各レターボックスにタップでヒントを表示
+  const boxes = document.querySelectorAll('#letter-boxes .letter-box');
+  let ipaIdx = 0;
+  word.split('').forEach((c, i) => {
+    if (c === ' ') return;
+    const box = boxes[i];
+    if (!box) return;
+    const ipa = ipaChars[ipaIdx++];
+    if (!ipa) return;
+    box.addEventListener('click', () => {
       const hint = IPA_HINTS[ipa];
       if (!hint) return;
-      hintBox.textContent = `「${ch}」の音: ${hint}`;
+      hintBox.textContent = `「${c}」の音: ${hint}`;
       hintBox.classList.add('show');
     });
   });
@@ -1461,13 +1445,19 @@ function showIPACompare(word, chars) {
   }
 }
 
-// レターボックスを描画（result なければグレー）
+// レターボックスを描画（IPA付き・ボーダーなし）
 function renderLetterBoxes(word, charResults) {
   const container = document.getElementById('letter-boxes');
+  const ipaChars = WORD_IPA[word];
+  let ipaIdx = 0;
   container.innerHTML = word.split('').map((c, i) => {
-    if (c === ' ') return '<div class="letter-box" style="min-width:10px;border:none;background:transparent"></div>';
+    if (c === ' ') return '<div style="width:10px"></div>';
     const cls = charResults ? charResults[i] || 'ng' : '';
-    return `<div class="letter-box ${cls}">${c}</div>`;
+    const ipa = ipaChars ? (ipaChars[ipaIdx++] || '') : '';
+    return `<div class="letter-box ${cls}" data-ipa="${ipa}" data-char="${c}">` +
+      `<span class="letter-char">${c}</span>` +
+      `<span class="letter-ipa">${ipa ? '/'+ipa+'/' : '\u00a0'}</span>` +
+      `</div>`;
   }).join('');
 }
 
