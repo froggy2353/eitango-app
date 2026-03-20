@@ -776,7 +776,7 @@
 
     <!-- きいた言葉 -->
     <p class="heard-label" id="heard-label"></p>
-    <p class="mic-debug-label" id="mic-debug-label"></p>
+    <p class="mic-debug-label" id="mic-debug-label" style="display:none"></p>
 
     <!-- IPA 発音記号比較パネル -->
     <div class="ipa-compare" id="ipa-compare" style="display:none"></div>
@@ -788,7 +788,6 @@
     <div class="compare-btns" id="compare-btns" style="display:none">
       <button class="btn-compare" id="btn-listen-model" aria-label="お手本を聴く">
         <span class="compare-icon">🔊</span>
-        <span class="compare-label">お手本</span>
       </button>
       <div class="compare-divider"></div>
       <button class="btn-compare" id="btn-listen-me" aria-label="自分の発音を聴く">
@@ -1433,7 +1432,6 @@ function showIPACompare(word, chars) {
 
   el.innerHTML = `
     <div class="ipa-row">
-      <span class="ipa-label">お手本</span>
       <div class="ipa-cells" id="ipa-cells-target">${targetCells}</div>
     </div>`;
   el.style.display = 'flex';
@@ -1506,7 +1504,6 @@ function openMicModal() {
   document.getElementById('kana-hint').textContent = KANA_HINTS[word.en] || '';
   document.getElementById('pronunciation-score').style.display = 'none';
   document.getElementById('heard-label').textContent = '';
-  document.getElementById('mic-debug-label').textContent = '';
   document.getElementById('ipa-compare').style.display = 'none';
   document.getElementById('hint-box').classList.remove('show');
   document.getElementById('mic-modal-actions').classList.remove('show');
@@ -1535,13 +1532,6 @@ function closeMicModal() {
   document.getElementById('compare-btns').style.display = 'none';
   document.getElementById('ipa-compare').style.display = 'none';
   document.getElementById('hint-box').classList.remove('show');
-  // quiz本体のバッジに最終結果を反映
-  if (micModalLastResult) {
-    const el = document.getElementById('mic-result');
-    const { ok, heard } = micModalLastResult;
-    el.className = 'mic-result ' + (ok ? 'correct' : 'wrong');
-    el.textContent = ok ? `⭕ "${heard}" かんぺき！` : `❌ "${heard}"`;
-  }
 }
 
 function setMicState(state) {
@@ -1626,9 +1616,10 @@ async function startMicModal() {
     isListening = true;
     setMicState('listening');
 
-    // 5秒後に自動停止
+    // 5秒後に自動停止（マイクも同時解放）
     setTimeout(() => {
       if (mediaRecorder && mediaRecorder.state === 'recording') {
+        if (micStream) { micStream.getTracks().forEach(t => t.stop()); micStream = null; }
         mediaRecorder.stop();
       }
     }, 5000);
@@ -1646,6 +1637,7 @@ async function startMicModal() {
 
 function stopMicRecording() {
   if (mediaRecorder && mediaRecorder.state === 'recording') {
+    if (micStream) { micStream.getTracks().forEach(t => t.stop()); micStream = null; }
     mediaRecorder.stop();
   }
 }
@@ -1686,14 +1678,6 @@ function showMicModalResultFromBackend(result, word, engineUsed, blobSize) {
     : score >= 50 ? '📖 IPAをタップして練習しよう'
     : '🔄 もういちど やってみよう';
 
-  // デバッグ情報を表示
-  if (engineUsed) {
-    const kb = blobSize ? Math.round(blobSize / 1024) : '?';
-    const extra = result.debugInfo ? `\n${result.debugInfo}` : '';
-    document.getElementById('mic-debug-label').textContent =
-      `[${engineUsed}] ${score}点 / audio: ${kb}KB${extra}`;
-  }
-
   document.getElementById('mic-modal-actions').classList.add('show');
 
   // IPA 比較パネルを表示
@@ -1706,12 +1690,6 @@ function showMicModalResultFromBackend(result, word, engineUsed, blobSize) {
   document.getElementById('btn-listen-model').classList.remove('playing');
   document.getElementById('btn-listen-me').classList.remove('playing');
 
-  // 95点以上なら自動クローズ
-  if (score >= 95) {
-    setTimeout(() => {
-      if (document.getElementById('mic-modal').classList.contains('open')) closeMicModal();
-    }, totalDelay + 1800);
-  }
 }
 
 function showMicModalResult(ok, heard) {
@@ -1745,12 +1723,6 @@ function showMicModalResult(ok, heard) {
 
   actionsEl.classList.add('show');
 
-  // 100点なら2.5秒後に自動クローズ
-  if (score === 100) {
-    setTimeout(() => {
-      if (document.getElementById('mic-modal').classList.contains('open')) closeMicModal();
-    }, totalDelay + 1800);
-  }
 }
 
 // ===== NAVIGATION =====
