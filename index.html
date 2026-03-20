@@ -563,7 +563,71 @@
     padding: 16px 36px;
   }
 
-  /* ===== LOADING ===== */
+  /* ===== SETTINGS MODAL ===== */
+  .settings-overlay {
+    position: fixed; inset: 0; z-index: 200;
+    background: rgba(0,0,0,0.45);
+    display: flex; align-items: flex-end; justify-content: center;
+    opacity: 0; pointer-events: none; transition: opacity .25s;
+  }
+  .settings-overlay.open { opacity: 1; pointer-events: all; }
+  .settings-card {
+    background: #fff; border-radius: 24px 24px 0 0;
+    padding: 24px 20px 36px; width: 100%; max-width: 480px;
+    box-shadow: 0 -4px 24px rgba(0,0,0,.15);
+    transform: translateY(100%); transition: transform .3s cubic-bezier(.32,1,.6,1);
+    display: flex; flex-direction: column; gap: 16px;
+  }
+  .settings-overlay.open .settings-card { transform: translateY(0); }
+  .settings-handle {
+    width: 40px; height: 4px; background: #ddd; border-radius: 2px;
+    align-self: center; margin-bottom: 4px;
+  }
+  .settings-title {
+    font-size: 1.1rem; font-weight: 700; color: var(--teal-dark);
+    text-align: center;
+  }
+  .settings-section {
+    background: #f7f7f7; border-radius: 14px; padding: 14px 16px;
+    display: flex; flex-direction: column; gap: 10px;
+  }
+  .settings-section-title {
+    font-size: 0.78rem; font-weight: 700; color: #888;
+    text-transform: uppercase; letter-spacing: 0.06em;
+  }
+  .settings-row {
+    display: flex; flex-direction: column; gap: 4px;
+  }
+  .settings-label {
+    font-size: 0.82rem; font-weight: 700; color: var(--teal-dark);
+  }
+  .settings-input {
+    width: 100%; padding: 9px 12px;
+    border: 2px solid #ddd; border-radius: 10px;
+    font-size: 0.88rem; font-family: monospace;
+    outline: none; background: #fff;
+    transition: border-color .15s;
+  }
+  .settings-input:focus { border-color: var(--teal); }
+  .settings-hint {
+    font-size: 0.75rem; color: #999; line-height: 1.4;
+  }
+  .settings-badge {
+    display: inline-block; padding: 2px 8px;
+    border-radius: 6px; font-size: 0.72rem; font-weight: 700;
+    background: #e8f5e9; color: #2e7d32;
+  }
+  .settings-badge.inactive { background: #f5f5f5; color: #999; }
+  .btn-settings-save {
+    background: var(--teal); color: #fff;
+    border: none; border-radius: 14px;
+    padding: 14px; font-size: 1rem; font-weight: 700;
+    cursor: pointer; width: 100%;
+    font-family: 'Zen Maru Gothic', sans-serif;
+  }
+  .btn-settings-save:active { opacity: 0.85; }
+
+
   .img-loader {
     position: absolute;
     inset: 0;
@@ -722,6 +786,38 @@
   <div class="stars" id="result-stars">⭐⭐⭐</div>
   <div class="result-score" id="result-score"></div>
   <button class="btn btn-home" id="btn-home">ホームにもどる 🏠</button>
+</div>
+
+<!-- ===== SETTINGS MODAL ===== -->
+<div id="settings-modal" class="settings-overlay" aria-hidden="true">
+  <div class="settings-card">
+    <div class="settings-handle"></div>
+    <div class="settings-title">⚙️ せってい</div>
+
+    <div class="settings-section">
+      <div class="settings-section-title">
+        Azure Pronunciation Assessment
+        <span class="settings-badge inactive" id="azure-status-badge">未設定</span>
+      </div>
+      <div class="settings-row">
+        <label class="settings-label" for="input-azure-region">リージョン</label>
+        <input class="settings-input" id="input-azure-region" type="text"
+          placeholder="例: japaneast" autocomplete="off" autocorrect="off" spellcheck="false">
+      </div>
+      <div class="settings-row">
+        <label class="settings-label" for="input-azure-key">サブスクリプションキー</label>
+        <input class="settings-input" id="input-azure-key" type="password"
+          placeholder="32桁のキー" autocomplete="off" autocorrect="off">
+      </div>
+      <p class="settings-hint">
+        Azure Portal → Speech Services → キーとエンドポイント<br>
+        設定するとWav2Vec2のかわりにAzure APIで評価します（音素レベル精度）<br>
+        未設定の場合はブラウザ内Wav2Vec2を使用します
+      </p>
+    </div>
+
+    <button class="btn-settings-save" id="btn-settings-save">保存してとじる</button>
+  </div>
 </div>
 
 <script type="module">
@@ -1076,6 +1172,101 @@ async function assessPronunciation(audioBlob, word) {
   return { chars, score };
 }
 
+// ===== AZURE CONFIG =====
+let AZURE_SPEECH_KEY    = localStorage.getItem('azure_key')    || '';
+let AZURE_SPEECH_REGION = localStorage.getItem('azure_region') || '';
+
+// Float32 → 16kHz mono WAV Blob
+function encodeWav(float32, sampleRate = 16000) {
+  const numSamples = float32.length;
+  const buf = new ArrayBuffer(44 + numSamples * 2);
+  const v = new DataView(buf);
+  const str = (off, s) => [...s].forEach((c, i) => v.setUint8(off + i, c.charCodeAt(0)));
+  str(0, 'RIFF');
+  v.setUint32(4, 36 + numSamples * 2, true);
+  str(8, 'WAVE'); str(12, 'fmt ');
+  v.setUint32(16, 16, true);
+  v.setUint16(20, 1, true);          // PCM
+  v.setUint16(22, 1, true);          // mono
+  v.setUint32(24, sampleRate, true);
+  v.setUint32(28, sampleRate * 2, true);
+  v.setUint16(32, 2, true);
+  v.setUint16(34, 16, true);
+  str(36, 'data');
+  v.setUint32(40, numSamples * 2, true);
+  for (let i = 0; i < numSamples; i++)
+    v.setInt16(44 + i * 2, Math.max(-32768, Math.min(32767, float32[i] * 32767)), true);
+  return new Blob([buf], { type: 'audio/wav' });
+}
+
+// Azure ARPABET → IPA（WORD_IPAと同じ表記）
+const ARPABET_TO_IPA = {
+  'k':'k','ae':'æ','t':'t','d':'d','g':'ɡ','eh':'ɛ','l':'l','ih':'ɪ',
+  'p':'p','hh':'h','ah':'ə','n':'n','ay':'aɪ','r':'r','b':'b','uw':'uː',
+  'w':'w','iy':'iː','ey':'eɪ','f':'f','m':'m','sh':'ʃ','s':'s','z':'z',
+  'v':'v','ng':'ŋ','y':'j','ch':'tʃ','jh':'dʒ','th':'θ','er':'ɜ',
+  'uh':'ʊ','aw':'aʊ','ao':'ɔ','aa':'ɑ','ow':'ɒ','dh':'ð',
+};
+
+async function assessWithAzure(audioBlob, word) {
+  const float32 = await blobToFloat32(audioBlob);
+  const wavBlob = encodeWav(float32);
+
+  const configJson = JSON.stringify({
+    ReferenceText: word,
+    GradingSystem: 'HundredMark',
+    Granularity: 'Phoneme',
+    EnableMiscue: false,
+  });
+  const configB64 = btoa(unescape(encodeURIComponent(configJson)));
+
+  const res = await fetch(
+    `https://${AZURE_SPEECH_REGION}.stt.speech.microsoft.com/speech/recognition/conversation/cognitiveservices/v1?language=en-US&format=detailed`,
+    {
+      method: 'POST',
+      headers: {
+        'Ocp-Apim-Subscription-Key': AZURE_SPEECH_KEY,
+        'Content-Type': 'audio/wav; codecs=audio/pcm; samplerate=16000',
+        'Pronunciation-Assessment': configB64,
+      },
+      body: wavBlob,
+    }
+  );
+  if (!res.ok) throw new Error(`Azure HTTP ${res.status}`);
+  const data = await res.json();
+
+  const best = data.NBest?.[0];
+  if (!best) throw new Error('Azure: no result');
+
+  const overallScore = Math.round(best.PronunciationAssessment?.AccuracyScore ?? 50);
+
+  // 全音素を順番通りに収集
+  const azurePhonemes = (best.Words || []).flatMap(w =>
+    (w.Phonemes || []).map(ph => ({
+      ipa: ARPABET_TO_IPA[ph.Phoneme?.toLowerCase()] || ph.Phoneme,
+      score: Math.round(ph.PronunciationAssessment?.AccuracyScore ?? overallScore),
+    }))
+  );
+
+  // WORD_IPA を使ってキャラクタ位置ごとにスコアを割り当て
+  const ipaChars     = WORD_IPA[word];
+  const nonSpaceChars = word.split('').filter(c => c !== ' ');
+
+  let chars;
+  if (ipaChars && azurePhonemes.length > 0) {
+    // ipaChars と azurePhonemes を順に対応（インデックスで）
+    chars = ipaChars.map((targetIpa, i) => {
+      const ph = azurePhonemes[i];   // 同じ順番で対応
+      const score = ph?.score ?? overallScore;
+      return { char: nonSpaceChars[i] || '', score };
+    });
+  } else {
+    chars = nonSpaceChars.map(c => ({ char: c, score: overallScore }));
+  }
+
+  return { chars, score: overallScore };
+}
+
 // ===== KANA HINTS =====
 const KANA_HINTS = {
   'Cat':'キャット','Dog':'ドッグ','Elephant':'エレファント','Lion':'ライオン',
@@ -1359,10 +1550,16 @@ async function startMicModal() {
       lastAudioBlob = blob;   // 聴き比べ用に保存
       const word = words[index].en;
       try {
-        // ブラウザ内 Wav2Vec2 で発音評価（サーバー不要）、15秒タイムアウト付き
-        const timeout = new Promise((_, reject) =>
-          setTimeout(() => reject(new Error('timeout')), 15000));
-        const result = await Promise.race([assessPronunciation(blob, word), timeout]);
+        let result;
+        if (AZURE_SPEECH_KEY && AZURE_SPEECH_REGION) {
+          // Azure Pronunciation Assessment（音素レベル精度）
+          result = await assessWithAzure(blob, word);
+        } else {
+          // ブラウザ内 Wav2Vec2 フォールバック（15秒タイムアウト）
+          const timeout = new Promise((_, reject) =>
+            setTimeout(() => reject(new Error('timeout')), 15000));
+          result = await Promise.race([assessPronunciation(blob, word), timeout]);
+        }
         showMicModalResultFromBackend(result, word);
       } catch (err) {
         console.warn('評価エラー:', err);
@@ -1710,6 +1907,48 @@ document.getElementById('mic-round-btn').addEventListener('click', () => {
 
 document.getElementById('btn-next').addEventListener('click', nextCard);
 document.getElementById('btn-home').addEventListener('click', () => showScreen('screen-home'));
+
+// ===== SETTINGS MODAL =====
+function updateAzureBadge() {
+  const badge = document.getElementById('azure-status-badge');
+  if (AZURE_SPEECH_KEY && AZURE_SPEECH_REGION) {
+    badge.textContent = '✅ 有効';
+    badge.className = 'settings-badge';
+  } else {
+    badge.textContent = '未設定';
+    badge.className = 'settings-badge inactive';
+  }
+}
+
+function openSettingsModal() {
+  document.getElementById('input-azure-region').value = AZURE_SPEECH_REGION;
+  document.getElementById('input-azure-key').value    = AZURE_SPEECH_KEY;
+  updateAzureBadge();
+  const modal = document.getElementById('settings-modal');
+  modal.setAttribute('aria-hidden', 'false');
+  modal.classList.add('open');
+}
+
+function closeSettingsModal() {
+  const modal = document.getElementById('settings-modal');
+  modal.classList.remove('open');
+  modal.setAttribute('aria-hidden', 'true');
+}
+
+document.getElementById('settings-btn').addEventListener('click', openSettingsModal);
+document.getElementById('settings-modal').addEventListener('click', (e) => {
+  if (e.target === e.currentTarget) closeSettingsModal();
+});
+document.getElementById('btn-settings-save').addEventListener('click', () => {
+  AZURE_SPEECH_KEY    = document.getElementById('input-azure-key').value.trim();
+  AZURE_SPEECH_REGION = document.getElementById('input-azure-region').value.trim();
+  localStorage.setItem('azure_key',    AZURE_SPEECH_KEY);
+  localStorage.setItem('azure_region', AZURE_SPEECH_REGION);
+  closeSettingsModal();
+});
+
+// 起動時バッジ更新
+updateAzureBadge();
 
 // double-tap zoom prevention is handled via CSS touch-action: manipulation
 </script>
