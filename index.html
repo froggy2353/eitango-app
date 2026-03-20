@@ -1478,6 +1478,7 @@ function openMicModal() {
   document.getElementById('compare-btns').style.display = 'none';
   document.getElementById('btn-modal-retry').style.display = 'none';
   document.getElementById('mic-round-btn').style.display = '';
+  document.getElementById('mic-waveform').style.display = '';
   micModalLastResult = null;
   setMicState('idle');
   document.getElementById('mic-modal').setAttribute('aria-hidden', 'false');
@@ -1646,8 +1647,9 @@ function showMicModalResultFromBackend(result, word, engineUsed, blobSize) {
     : score >= 50 ? '📖 IPAをタップして練習しよう'
     : '🔄 もういちど やってみよう';
 
-  // マイクアイコンを隠し、再トライボタンを表示
+  // マイクアイコン・波形を隠し、再トライボタンを表示
   document.getElementById('mic-round-btn').style.display = 'none';
+  document.getElementById('mic-waveform').style.display = 'none';
   document.getElementById('btn-modal-retry').style.display = '';
 
   // IPA 比較パネルを表示
@@ -1687,8 +1689,9 @@ function showMicModalResult(ok, heard) {
     : score >= 70 ? '👍 いい感じ！'
     : '🔄 もういちど やってみよう';
 
-  // マイクアイコンを隠し、再トライボタンを表示
+  // マイクアイコン・波形を隠し、再トライボタンを表示
   document.getElementById('mic-round-btn').style.display = 'none';
+  document.getElementById('mic-waveform').style.display = 'none';
   document.getElementById('btn-modal-retry').style.display = '';
 
 }
