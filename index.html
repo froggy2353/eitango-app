@@ -1267,21 +1267,26 @@ async function assessWithAzure(audioBlob, word) {
     throw new Error(`Azure: ${status}`);
   }
 
+  // Azure はバージョンによって構造が異なる:
+  //   旧: best.PronunciationAssessment.AccuracyScore
+  //   新: best.AccuracyScore (フラット)
   const pa = best.PronunciationAssessment;
-  // NBest[0]のキー一覧を画面に表示（デバッグ用）
-  const bestKeys = Object.keys(best).join(',');
-  const debugInfo = `認識:"${best.Lexical}" keys:[${bestKeys}]\nAcc:${pa?.AccuracyScore ?? '-'} Flu:${pa?.FluencyScore ?? '-'}`;
-  if (!pa) {
-    throw new Error(`PA欠落 keys:[${bestKeys}] / 認識:"${best.Lexical}"`);
+  const accScore = pa?.AccuracyScore ?? best.AccuracyScore ?? best.PronScore;
+  if (accScore == null) {
+    const bestKeys = Object.keys(best).join(',');
+    throw new Error(`スコア取得失敗 keys:[${bestKeys}]`);
   }
 
-  const overallScore = Math.round(pa.AccuracyScore ?? pa.PronScore ?? 50);
+  const overallScore = Math.round(accScore);
+  const debugInfo = `認識:"${best.Lexical}" Acc:${overallScore} Flu:${pa?.FluencyScore ?? best.FluencyScore ?? '-'}`;
 
-  // 全音素を順番通りに収集
+  // 全音素を順番通りに収集（両構造対応）
   const azurePhonemes = (best.Words || []).flatMap(w =>
     (w.Phonemes || []).map(ph => ({
       ipa: ARPABET_TO_IPA[ph.Phoneme?.toLowerCase()] || ph.Phoneme,
-      score: Math.round(ph.PronunciationAssessment?.AccuracyScore ?? overallScore),
+      score: Math.round(
+        ph.PronunciationAssessment?.AccuracyScore ?? ph.AccuracyScore ?? overallScore
+      ),
     }))
   );
 
