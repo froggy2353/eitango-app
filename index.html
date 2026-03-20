@@ -1240,9 +1240,11 @@ async function assessWithAzure(audioBlob, word) {
     ReferenceText: word,
     GradingSystem: 'HundredMark',
     Granularity: 'Phoneme',
+    PhonemeAlphabet: 'IPA',
     EnableMiscue: false,
   });
-  const configB64 = btoa(unescape(encodeURIComponent(configJson)));
+  // ASCII のみのJSONなので btoa() を直接使用（unescape/encodeURIComponent は不要）
+  const configB64 = btoa(configJson);
 
   const res = await fetch(
     `https://${AZURE_SPEECH_REGION}.stt.speech.microsoft.com/speech/recognition/conversation/cognitiveservices/v1?language=en-US&format=detailed`,
@@ -1266,9 +1268,11 @@ async function assessWithAzure(audioBlob, word) {
   }
 
   const pa = best.PronunciationAssessment;
-  const debugInfo = `認識:"${best.Lexical}" PA:${pa ? 'あり' : 'なし'} Acc:${pa?.AccuracyScore ?? '-'} Flu:${pa?.FluencyScore ?? '-'}`;
+  // NBest[0]のキー一覧を画面に表示（デバッグ用）
+  const bestKeys = Object.keys(best).join(',');
+  const debugInfo = `認識:"${best.Lexical}" keys:[${bestKeys}]\nAcc:${pa?.AccuracyScore ?? '-'} Flu:${pa?.FluencyScore ?? '-'}`;
   if (!pa) {
-    throw new Error(`発音評価なし / ${debugInfo}`);
+    throw new Error(`PA欠落 keys:[${bestKeys}] / 認識:"${best.Lexical}"`);
   }
 
   const overallScore = Math.round(pa.AccuracyScore ?? pa.PronScore ?? 50);
