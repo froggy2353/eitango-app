@@ -393,6 +393,10 @@
     font-size: 0.88rem; color: #aaa; font-weight: 600;
     text-align: center; min-height: 1.3em; margin: 0;
   }
+  .mic-debug-label {
+    font-size: 0.7rem; color: #bbb; text-align: center;
+    min-height: 1em; margin: 0; font-family: monospace;
+  }
 
   /* waveform */
   .mic-waveform {
@@ -771,6 +775,7 @@
 
     <!-- きいた言葉 -->
     <p class="heard-label" id="heard-label"></p>
+    <p class="mic-debug-label" id="mic-debug-label"></p>
 
     <!-- IPA 発音記号比較パネル -->
     <div class="ipa-compare" id="ipa-compare" style="display:none"></div>
@@ -1482,6 +1487,7 @@ function openMicModal() {
   document.getElementById('kana-hint').textContent = KANA_HINTS[word.en] || '';
   document.getElementById('pronunciation-score').style.display = 'none';
   document.getElementById('heard-label').textContent = '';
+  document.getElementById('mic-debug-label').textContent = '';
   document.getElementById('ipa-compare').style.display = 'none';
   document.getElementById('hint-box').classList.remove('show');
   document.getElementById('mic-modal-actions').classList.remove('show');
@@ -1569,16 +1575,22 @@ async function startMicModal() {
       const word = words[index].en;
       try {
         let result;
+        let engineUsed;
         if (AZURE_SPEECH_KEY && AZURE_SPEECH_REGION) {
           // Azure Pronunciation Assessment（音素レベル精度）
           result = await assessWithAzure(blob, word);
+          engineUsed = 'Azure';
         } else {
           // ブラウザ内 Wav2Vec2 フォールバック（15秒タイムアウト）
           const timeout = new Promise((_, reject) =>
             setTimeout(() => reject(new Error('timeout')), 15000));
           result = await Promise.race([assessPronunciation(blob, word), timeout]);
+          engineUsed = 'Wav2Vec2';
         }
-        showMicModalResultFromBackend(result, word);
+        // デバッグ: 音声の長さを計算
+        const audioDurationMs = blob.size > 0
+          ? Math.round(blob.size / (16000 * 2) * 1000) : 0;
+        showMicModalResultFromBackend(result, word, engineUsed, blob.size);
       } catch (err) {
         console.warn('評価エラー:', err);
         const msg = err?.message || String(err);
@@ -1620,7 +1632,7 @@ function stopMicRecording() {
 }
 
 // バックエンドからの発音スコアで文字ボックスを色付け
-function showMicModalResultFromBackend(result, word) {
+function showMicModalResultFromBackend(result, word, engineUsed, blobSize) {
   const { chars, score } = result;
   const ok = score >= 70;
   if (ok) correctCount++;
@@ -1654,6 +1666,13 @@ function showMicModalResultFromBackend(result, word) {
     : score >= 70 ? '👍 いい感じ！'
     : score >= 50 ? '📖 IPAをタップして練習しよう'
     : '🔄 もういちど やってみよう';
+
+  // デバッグ情報を表示
+  if (engineUsed) {
+    const kb = blobSize ? Math.round(blobSize / 1024) : '?';
+    document.getElementById('mic-debug-label').textContent =
+      `[${engineUsed}] ${score}点 / audio: ${kb}KB`;
+  }
 
   document.getElementById('mic-modal-actions').classList.add('show');
 
