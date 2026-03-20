@@ -1673,8 +1673,7 @@ function showMicModalResultFromBackend(result, word, engineUsed, blobSize) {
     setTimeout(() => { box.classList.add(cls); }, delay);
   });
 
-  const totalDelay = Math.max(0, bi - 1) * 110 + 400;
-  setTimeout(() => showScore(score), totalDelay);
+  showScore(score);
 
   // 結果メッセージ（ヒントはIPAパネルのタップで表示）
   document.getElementById('heard-label').textContent =
@@ -1719,8 +1718,7 @@ function showMicModalResult(ok, heard) {
     setTimeout(() => { box.classList.add(charResults[i] || 'ng'); }, delay);
   });
 
-  const totalDelay2 = (bi - 1) * 110 + 400;
-  setTimeout(() => showScore(score), totalDelay2);
+  showScore(score);
 
   document.getElementById('heard-label').textContent =
     heard === 'きこえなかったよ' ? '（きこえなかったよ）'
