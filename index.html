@@ -396,6 +396,7 @@
   .mic-debug-label {
     font-size: 0.7rem; color: #bbb; text-align: center;
     min-height: 1em; margin: 0; font-family: monospace;
+    white-space: pre-line;
   }
 
   /* waveform */
@@ -1257,19 +1258,17 @@ async function assessWithAzure(audioBlob, word) {
   );
   if (!res.ok) throw new Error(`Azure HTTP ${res.status}`);
   const data = await res.json();
-  console.log('Azure response:', JSON.stringify(data));
 
   const best = data.NBest?.[0];
   if (!best) {
     const status = data.RecognitionStatus || 'unknown';
-    throw new Error(`Azure: no result (${status})`);
+    throw new Error(`Azure: ${status}`);
   }
 
   const pa = best.PronunciationAssessment;
+  const debugInfo = `認識:"${best.Lexical}" PA:${pa ? 'あり' : 'なし'} Acc:${pa?.AccuracyScore ?? '-'} Flu:${pa?.FluencyScore ?? '-'}`;
   if (!pa) {
-    // 音声認識は成功したが発音評価が返ってこなかった
-    console.warn('Azure: PronunciationAssessment absent. best=', JSON.stringify(best));
-    throw new Error(`Azure: no PronunciationAssessment (recognized: "${best.Lexical}")`);
+    throw new Error(`発音評価なし / ${debugInfo}`);
   }
 
   const overallScore = Math.round(pa.AccuracyScore ?? pa.PronScore ?? 50);
@@ -1298,7 +1297,7 @@ async function assessWithAzure(audioBlob, word) {
     chars = nonSpaceChars.map(c => ({ char: c, score: overallScore }));
   }
 
-  return { chars, score: overallScore };
+  return { chars, score: overallScore, debugInfo };
 }
 
 // ===== KANA HINTS =====
@@ -1681,8 +1680,9 @@ function showMicModalResultFromBackend(result, word, engineUsed, blobSize) {
   // デバッグ情報を表示
   if (engineUsed) {
     const kb = blobSize ? Math.round(blobSize / 1024) : '?';
+    const extra = result.debugInfo ? `\n${result.debugInfo}` : '';
     document.getElementById('mic-debug-label').textContent =
-      `[${engineUsed}] ${score}点 / audio: ${kb}KB`;
+      `[${engineUsed}] ${score}点 / audio: ${kb}KB${extra}`;
   }
 
   document.getElementById('mic-modal-actions').classList.add('show');
