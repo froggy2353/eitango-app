@@ -370,6 +370,24 @@
     letter-spacing: 0.08em; text-align: center; margin-top: -4px;
   }
 
+  /* ===== SCORE ===== */
+  .pronunciation-score {
+    display: flex; align-items: baseline; gap: 3px;
+    animation: scorePopIn 0.45s cubic-bezier(.17,.67,.46,1.5);
+  }
+  .score-number {
+    font-family: 'Fredoka', sans-serif;
+    font-size: 3.2rem; font-weight: 700; line-height: 1;
+  }
+  .score-unit { font-size: 1rem; font-weight: 700; color: #999; }
+  .score-perfect { color: #4caf50; }
+  .score-good    { color: #ff9800; }
+  .score-try     { color: #e53935; }
+  @keyframes scorePopIn {
+    0%   { transform: scale(0.4); opacity: 0; }
+    100% { transform: scale(1);   opacity: 1; }
+  }
+
   /* きいた言葉 */
   .heard-label {
     font-size: 0.88rem; color: #aaa; font-weight: 600;
@@ -758,6 +776,11 @@
     </div>
     <p class="mic-status-text" id="mic-status-text" style="display:none">マイクを おして はなしてね 🎙</p>
     <button class="mic-round-btn" id="mic-round-btn" aria-label="はつおん"><svg style="pointer-events:none" viewBox="0 0 24 24" width="38" height="38" fill="currentColor"><path d="M9,5A4,4 0 0,1 13,9A4,4 0 0,1 9,13A4,4 0 0,1 5,9A4,4 0 0,1 9,5M9,15C11.67,15 17,16.34 17,19V21H1V19C1,16.34 6.33,15 9,15M16.76,5.36C18.78,7.56 18.78,10.61 16.76,12.63L15.08,10.94C15.92,9.76 15.92,8.23 15.08,7.05L16.76,5.36M20.07,2C24,6.05 23.97,12.11 20.07,16L18.44,14.37C21.21,11.19 21.21,6.65 18.44,3.63L20.07,2Z"/></svg></button>
+
+    <!-- 点数（結果後に表示） -->
+    <div class="pronunciation-score" id="pronunciation-score" style="display:none">
+      <span class="score-number" id="score-number">100</span><span class="score-unit">てん</span>
+    </div>
 
     <!-- きいた言葉 -->
     <p class="heard-label" id="heard-label"></p>
@@ -1466,6 +1489,15 @@ function prewarmAudio() {
     .catch(() => {});
 }
 
+function showScore(score) {
+  const el = document.getElementById('pronunciation-score');
+  const num = document.getElementById('score-number');
+  num.textContent = score;
+  num.className = 'score-number ' +
+    (score === 100 ? 'score-perfect' : score >= 70 ? 'score-good' : 'score-try');
+  el.style.display = 'flex';
+}
+
 function openMicModal() {
   micModalOpenTime = Date.now();
   const word = words[index];
@@ -1477,6 +1509,7 @@ function openMicModal() {
   document.getElementById('mic-modal-actions').classList.remove('show');
   document.getElementById('compare-btns').style.display = 'none';
   document.getElementById('btn-modal-retry').style.display = 'none';
+  document.getElementById('pronunciation-score').style.display = 'none';
   document.getElementById('mic-round-btn').style.display = '';
   document.getElementById('mic-waveform').style.display = '';
   micModalLastResult = null;
@@ -1640,6 +1673,9 @@ function showMicModalResultFromBackend(result, word, engineUsed, blobSize) {
     setTimeout(() => { box.classList.add(cls); }, delay);
   });
 
+  const totalDelay = Math.max(0, bi - 1) * 110 + 400;
+  setTimeout(() => showScore(score), totalDelay);
+
   // 結果メッセージ（ヒントはIPAパネルのタップで表示）
   document.getElementById('heard-label').textContent =
     score >= 90 ? '🎉 すばらしい！'
@@ -1682,6 +1718,9 @@ function showMicModalResult(ok, heard) {
     bi++;
     setTimeout(() => { box.classList.add(charResults[i] || 'ng'); }, delay);
   });
+
+  const totalDelay2 = (bi - 1) * 110 + 400;
+  setTimeout(() => showScore(score), totalDelay2);
 
   document.getElementById('heard-label').textContent =
     heard === 'きこえなかったよ' ? '（きこえなかったよ）'
