@@ -433,6 +433,14 @@
     color: #777; letter-spacing: 0;
     transition: color 0.2s;
   }
+  .phoneme-play-btn {
+    background: none; border: none; cursor: pointer;
+    font-size: 11px; padding: 0; line-height: 1;
+    opacity: 0.5; transition: opacity 0.15s, transform 0.1s;
+    touch-action: manipulation;
+  }
+  .phoneme-play-btn:hover { opacity: 1; }
+  .phoneme-play-btn:active { transform: scale(0.85); }
   .letter-box.ok   .letter-char { color: #2e7d32; animation: popChar 0.35s cubic-bezier(.17,.67,.46,1.5); }
   .letter-box.ok   .letter-ipa  { color: #66bb6a; }
   .letter-box.ng   .letter-char { color: #c62828; animation: popChar 0.35s cubic-bezier(.17,.67,.46,1.5); }
@@ -1127,6 +1135,66 @@ function speak(text) {
   synth.speak(utter);
 }
 
+// ===== PHONEME AUDIO (Azure TTS SSML / Web Speech フォールバック) =====
+let _phonemeAudio = null;
+
+// IPA音素をAzure TTS SSMLで再生。Azureキーがなければ Web Speech API にフォールバック
+async function speakPhoneme(ipa) {
+  if (_phonemeAudio) { _phonemeAudio.pause(); _phonemeAudio = null; }
+
+  if (AZURE_SPEECH_KEY && AZURE_SPEECH_REGION) {
+    try {
+      const ssml =
+        `<speak version="1.0" xmlns="http://www.w3.org/2001/10/synthesis" xml:lang="en-US">` +
+        `<voice name="en-US-JennyNeural">` +
+        `<phoneme alphabet="ipa" ph="${ipa}">${ipa}</phoneme>` +
+        `</voice></speak>`;
+      const res = await fetch(
+        `https://${AZURE_SPEECH_REGION}.tts.speech.microsoft.com/cognitiveservices/v1`,
+        {
+          method: 'POST',
+          headers: {
+            'Ocp-Apim-Subscription-Key': AZURE_SPEECH_KEY,
+            'Content-Type': 'application/ssml+xml',
+            'X-Microsoft-OutputFormat': 'audio-24khz-48kbitrate-mono-mp3',
+          },
+          body: ssml,
+        }
+      );
+      if (!res.ok) throw new Error(`Azure TTS ${res.status}`);
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      _phonemeAudio = new Audio(url);
+      _phonemeAudio.play();
+      _phonemeAudio.onended = () => URL.revokeObjectURL(url);
+      return;
+    } catch(e) {
+      console.warn('Azure TTS phoneme failed, fallback:', e);
+    }
+  }
+
+  // Web Speech API フォールバック
+  const IPA_FALLBACK = {
+    'r':'rrr','l':'lll','f':'fff','v':'vvv',
+    'θ':'ththth','ð':'ththth','ʃ':'shhhh','ʒ':'zhhhh',
+    'tʃ':'ch','dʒ':'j','ŋ':'nng',
+    'æ':'aaa','ɑ':'ahh','ɛ':'ehh','ɪ':'ihh','ɔ':'aww',
+    'ʊ':'ooh','ʌ':'uhh','ə':'uh',
+    'aɪ':'eye','eɪ':'ay','ɒ':'oh','uː':'ooo','iː':'eee',
+  };
+  const ttsText = IPA_FALLBACK[ipa] || ipa;
+  const synth = window.speechSynthesis;
+  if (!synth) return;
+  if (synth.speaking) synth.cancel();
+  const utter = new SpeechSynthesisUtterance(ttsText);
+  utter.lang = 'en-US';
+  utter.rate = 0.4;
+  const voices = synth.getVoices();
+  const enVoice = voices.find(v => v.lang === 'en-US') || voices.find(v => v.lang.startsWith('en'));
+  if (enVoice) utter.voice = enVoice;
+  synth.speak(utter);
+}
+
 // ===== Transformers.js Wav2Vec2 モデル =====
 // Xenova/wav2vec2-base-960h: 文字レベルCTC出力、量子化版で約90MB
 // 初回のみHugging Face Hubからダウンロード → IndexedDBにキャッシュ
@@ -1682,9 +1750,13 @@ function renderLetterBoxes(word, charResults) {
     if (c === ' ') return '<div style="width:10px"></div>';
     const cls = charResults ? charResults[i] || 'ng' : '';
     const ipa = ipaChars ? (ipaChars[ipaIdx++] || '') : '';
+    const playBtn = ipa
+      ? `<button class="phoneme-play-btn" aria-label="音を聞く" data-ipa="${ipa}">🔊</button>`
+      : '';
     return `<div class="letter-box ${cls}" data-ipa="${ipa}" data-char="${c}">` +
       `<span class="letter-char">${c}</span>` +
       `<span class="letter-ipa">${ipa ? '/'+ipa+'/' : '\u00a0'}</span>` +
+      playBtn +
       `</div>`;
   }).join('');
 }
@@ -2299,6 +2371,15 @@ document.getElementById('btn-settings-save').addEventListener('click', () => {
 
 // 起動時バッジ更新
 updateAzureBadge();
+
+// 🔊ボタン: イベントデリゲーションで音素を再生
+document.getElementById('letter-boxes').addEventListener('click', (e) => {
+  const btn = e.target.closest('.phoneme-play-btn');
+  if (!btn) return;
+  e.stopPropagation();
+  const ipa = btn.dataset.ipa;
+  if (ipa) speakPhoneme(ipa);
+});
 
 // double-tap zoom prevention is handled via CSS touch-action: manipulation
 </script>
