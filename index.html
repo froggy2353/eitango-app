@@ -909,13 +909,13 @@ const CATEGORIES = {
   body: {
     label: 'からだ',
     words: [
-      { en: 'Eye',   ja: 'め',   img: 'photo-1508559132751-858c5f413ce4' },
-      { en: 'Nose',  ja: 'はな', img: 'photo-1536010305525-f7aa0834e2c7' },
-      { en: 'Ear',   ja: 'みみ', img: 'photo-1631217868264-e5b90bb7e133' },
-      { en: 'Hand',  ja: 'て',   img: 'photo-1601814933824-fd0b574dd592' },
-      { en: 'Foot',  ja: 'あし', img: 'photo-1578874691223-64558a3ca096' },
-      { en: 'Mouth', ja: 'くち', img: 'photo-1543332164-6e82f355badc' },
-      { en: 'Hair',  ja: 'かみのけ', img: 'photo-1522337360788-8b13dee7a37e' },
+      { en: 'Eye',   ja: 'め',      img: 'https://upload.wikimedia.org/wikipedia/commons/thumb/8/88/Blue-green_eye_closeup.JPG/480px-Blue-green_eye_closeup.JPG' },
+      { en: 'Nose',  ja: 'はな',    img: 'https://upload.wikimedia.org/wikipedia/commons/thumb/1/18/Human_Nose.JPG/480px-Human_Nose.JPG' },
+      { en: 'Ear',   ja: 'みみ',    img: 'https://upload.wikimedia.org/wikipedia/commons/thumb/4/42/Left_ear.JPG/480px-Left_ear.JPG' },
+      { en: 'Hand',  ja: 'て',      img: 'https://upload.wikimedia.org/wikipedia/commons/thumb/7/7e/Palm_hand.JPG/480px-Palm_hand.JPG' },
+      { en: 'Foot',  ja: 'あし',    img: 'https://upload.wikimedia.org/wikipedia/commons/thumb/a/a8/A_picture_of_a_young_healthy_male_foot.jpg/480px-A_picture_of_a_young_healthy_male_foot.jpg' },
+      { en: 'Mouth', ja: 'くち',    img: 'https://upload.wikimedia.org/wikipedia/commons/thumb/c/c9/Adult_human_mouth_%28modified%29.jpg/480px-Adult_human_mouth_%28modified%29.jpg' },
+      { en: 'Hair',  ja: 'かみのけ', img: 'https://upload.wikimedia.org/wikipedia/commons/thumb/d/d9/Afro-textured_hair_close-up.jpg/480px-Afro-textured_hair_close-up.jpg' },
     ]
   },
   food: {
@@ -1791,7 +1791,7 @@ function loadCard() {
   loader.classList.remove('hidden');
   img.src = '';
 
-  const url = `https://images.unsplash.com/${word.img}?w=480&q=80`;
+  const url = word.img.startsWith('http') ? word.img : `https://images.unsplash.com/${word.img}?w=480&q=80`;
   img.onload = () => loader.classList.add('hidden');
   img.onerror = () => { loader.textContent = '🖼️'; };
   img.src = url;
