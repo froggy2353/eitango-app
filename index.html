@@ -909,13 +909,13 @@ const CATEGORIES = {
   body: {
     label: 'からだ',
     words: [
-      { en: 'Eye',   ja: 'め',      img: 'https://upload.wikimedia.org/wikipedia/commons/thumb/8/88/Blue-green_eye_closeup.JPG/480px-Blue-green_eye_closeup.JPG' },
-      { en: 'Nose',  ja: 'はな',    img: 'https://upload.wikimedia.org/wikipedia/commons/thumb/1/18/Human_Nose.JPG/480px-Human_Nose.JPG' },
-      { en: 'Ear',   ja: 'みみ',    img: 'https://upload.wikimedia.org/wikipedia/commons/thumb/4/42/Left_ear.JPG/480px-Left_ear.JPG' },
-      { en: 'Hand',  ja: 'て',      img: 'https://upload.wikimedia.org/wikipedia/commons/thumb/7/7e/Palm_hand.JPG/480px-Palm_hand.JPG' },
-      { en: 'Foot',  ja: 'あし',    img: 'https://upload.wikimedia.org/wikipedia/commons/thumb/a/a8/A_picture_of_a_young_healthy_male_foot.jpg/480px-A_picture_of_a_young_healthy_male_foot.jpg' },
-      { en: 'Mouth', ja: 'くち',    img: 'https://upload.wikimedia.org/wikipedia/commons/thumb/c/c9/Adult_human_mouth_%28modified%29.jpg/480px-Adult_human_mouth_%28modified%29.jpg' },
-      { en: 'Hair',  ja: 'かみのけ', img: 'https://upload.wikimedia.org/wikipedia/commons/thumb/d/d9/Afro-textured_hair_close-up.jpg/480px-Afro-textured_hair_close-up.jpg' },
+      { en: 'Eye',   ja: 'め',       img: 'wiki:Eye' },
+      { en: 'Nose',  ja: 'はな',     img: 'wiki:Nose' },
+      { en: 'Ear',   ja: 'みみ',     img: 'wiki:Ear' },
+      { en: 'Hand',  ja: 'て',       img: 'wiki:Hand' },
+      { en: 'Foot',  ja: 'あし',     img: 'wiki:Foot' },
+      { en: 'Mouth', ja: 'くち',     img: 'wiki:Mouth' },
+      { en: 'Hair',  ja: 'かみのけ', img: 'wiki:Hair' },
     ]
   },
   food: {
@@ -1791,11 +1791,22 @@ function loadCard() {
   loader.classList.remove('hidden');
   img.src = '';
 
-  const url = word.img.startsWith('http') ? word.img : `https://images.unsplash.com/${word.img}?w=480&q=80`;
-  img.onload = () => loader.classList.add('hidden');
-  img.onerror = () => { loader.textContent = '🖼️'; };
-  img.src = url;
   img.alt = word.en;
+  const setImg = (url) => {
+    img.onload = () => loader.classList.add('hidden');
+    img.onerror = () => { loader.textContent = '🖼️'; };
+    img.src = url;
+  };
+  if (word.img.startsWith('wiki:')) {
+    const title = word.img.slice(5);
+    fetch(`https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(title)}`)
+      .then(r => r.json())
+      .then(d => { if (d.thumbnail?.source) setImg(d.thumbnail.source); else loader.textContent = '🖼️'; })
+      .catch(() => { loader.textContent = '🖼️'; });
+  } else {
+    const url = word.img.startsWith('http') ? word.img : `https://images.unsplash.com/${word.img}?w=480&q=80`;
+    setImg(url);
+  }
 
   // answer panel — always visible
   document.getElementById('word-en').textContent = word.en;
