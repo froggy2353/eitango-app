@@ -477,6 +477,14 @@
     padding: 12px 0; border-radius: 999px;
     margin-top: 4px;
   }
+  .btn-modal-next {
+    width: 100%; max-width: 280px;
+    background: var(--teal); color: #fff;
+    border: 3px solid var(--teal);
+    font-size: 1rem; font-weight: 700;
+    padding: 12px 0; border-radius: 999px;
+    margin-top: 8px;
+  }
 
   /* ===== IPA 発音記号比較 ===== */
   .ipa-compare {
@@ -805,6 +813,7 @@
 
     <!-- 再トライボタン（評価後に表示） -->
     <button class="btn btn-modal-retry" id="btn-modal-retry" style="display:none">🔄 もういちど</button>
+    <button class="btn btn-modal-next" id="btn-modal-next" style="display:none">つぎへ ▶</button>
 
     <div class="mic-modal-actions" id="mic-modal-actions"></div>
   </div>
@@ -1508,6 +1517,7 @@ function openMicModal() {
   document.getElementById('mic-modal-actions').classList.remove('show');
   document.getElementById('compare-btns').style.display = 'none';
   document.getElementById('btn-modal-retry').style.display = 'none';
+  document.getElementById('btn-modal-next').style.display = 'none';
   document.getElementById('pronunciation-score').style.display = 'none';
   document.getElementById('mic-round-btn').style.display = '';
   document.getElementById('mic-waveform').style.display = '';
@@ -1687,6 +1697,7 @@ function showMicModalResultFromBackend(result, word, engineUsed, blobSize) {
   document.getElementById('mic-round-btn').style.display = 'none';
   document.getElementById('mic-waveform').style.display = 'none';
   document.getElementById('btn-modal-retry').style.display = '';
+  document.getElementById('btn-modal-next').style.display = '';
 
   // IPA 比較パネルを表示
   showIPACompare(word, chars);
@@ -1731,6 +1742,7 @@ function showMicModalResult(ok, heard) {
   document.getElementById('mic-round-btn').style.display = 'none';
   document.getElementById('mic-waveform').style.display = 'none';
   document.getElementById('btn-modal-retry').style.display = '';
+  document.getElementById('btn-modal-next').style.display = '';
 
 }
 
@@ -1932,6 +1944,9 @@ document.getElementById('btn-listen-me').addEventListener('click', () => {
 
 // 再トライボタン
 document.getElementById('btn-modal-retry').addEventListener('click', () => openMicModal());
+
+// つぎへボタン（モーダル内）
+document.getElementById('btn-modal-next').addEventListener('click', () => { closeMicModal(); nextCard(); });
 
 // モーダル内ボタン
 document.getElementById('mic-modal-close').addEventListener('click', closeMicModal);
