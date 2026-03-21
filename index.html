@@ -256,6 +256,86 @@
     box-shadow: 0 3px 12px rgba(0,0,0,.15);
     width: 58px; height: 58px;
   }
+  .btn-mouth {
+    background: var(--white);
+    color: #e91e8c;
+    box-shadow: 0 3px 12px rgba(0,0,0,.15);
+    width: 58px; height: 58px;
+    font-size: 1.5rem;
+    line-height: 1;
+  }
+
+  /* ===== 口の形モーダル ===== */
+  .mouth-modal-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.55);
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+    align-items: flex-end;
+    justify-content: center;
+    z-index: 300;
+  }
+  .mouth-modal-overlay.open {
+    display: flex;
+    animation: overlayIn 0.2s ease;
+  }
+  .mouth-modal-card {
+    background: var(--white);
+    border-radius: var(--radius) var(--radius) 0 0;
+    padding: 24px 20px 36px;
+    width: 100%;
+    max-width: 480px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+    position: relative;
+    animation: cardUp 0.25s ease;
+  }
+  .mouth-modal-close {
+    position: absolute;
+    top: 14px; right: 16px;
+    background: #f0f0f0;
+    border: none;
+    border-radius: 99px;
+    width: 32px; height: 32px;
+    font-size: 0.85rem;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .mouth-phoneme-label {
+    font-family: 'Fredoka', sans-serif;
+    font-size: 2.6rem;
+    font-weight: 700;
+    color: var(--teal);
+    line-height: 1;
+  }
+  .mouth-modal-title {
+    font-size: 1.05rem;
+    font-weight: 700;
+    color: var(--text);
+    text-align: center;
+    white-space: pre-line;
+  }
+  .mouth-svg-wrap {
+    width: 100%;
+    max-width: 300px;
+  }
+  .mouth-tip-box {
+    font-size: 0.82rem;
+    color: #555;
+    text-align: center;
+    line-height: 1.65;
+    background: #f0faf9;
+    border-radius: 12px;
+    padding: 12px 14px;
+    width: 100%;
+    max-width: 340px;
+  }
 
   @keyframes pulse {
     0%, 100% { box-shadow: 0 0 0 0 rgba(50,200,192,.5); }
@@ -760,6 +840,8 @@
       <button class="btn btn-mic" id="btn-mic" aria-label="はつおん">
         <svg viewBox="0 0 24 24" width="28" height="28" fill="currentColor"><path d="M9,5A4,4 0 0,1 13,9A4,4 0 0,1 9,13A4,4 0 0,1 5,9A4,4 0 0,1 9,5M9,15C11.67,15 17,16.34 17,19V21H1V19C1,16.34 6.33,15 9,15M16.76,5.36C18.78,7.56 18.78,10.61 16.76,12.63L15.08,10.94C15.92,9.76 15.92,8.23 15.08,7.05L16.76,5.36M20.07,2C24,6.05 23.97,12.11 20.07,16L18.44,14.37C21.21,11.19 21.21,6.65 18.44,3.63L20.07,2Z"/></svg>
       </button>
+      <!-- くちのかたち -->
+      <button class="btn btn-mouth" id="btn-mouth" aria-label="くちのかたち" style="display:none">👄</button>
     </div>
     <div class="no-mic" id="no-mic">※このブラウザはマイクに対応していません</div>
   </div>
@@ -816,6 +898,17 @@
     <button class="btn btn-modal-next" id="btn-modal-next" style="display:none">つぎへ ▶</button>
 
     <div class="mic-modal-actions" id="mic-modal-actions"></div>
+  </div>
+</div>
+
+<!-- ===== MOUTH HINT MODAL ===== -->
+<div id="mouth-modal" class="mouth-modal-overlay" aria-hidden="true">
+  <div class="mouth-modal-card">
+    <button class="mouth-modal-close" id="mouth-modal-close" aria-label="とじる">✕</button>
+    <div class="mouth-phoneme-label" id="mouth-phoneme-label"></div>
+    <div class="mouth-modal-title" id="mouth-modal-title"></div>
+    <div class="mouth-svg-wrap" id="mouth-svg-wrap"></div>
+    <div class="mouth-tip-box" id="mouth-tip-box"></div>
   </div>
 </div>
 
@@ -1343,6 +1436,122 @@ const KANA_HINTS = {
   'Snow':'スノー','Flower':'フラワー','Tree':'トゥリー','River':'リバー'
 };
 
+// ===== 口の形ヒント =====
+const WORD_MOUTH_HINTS = {
+  // r sound
+  'Rain':'r','Rabbit':'r','Rice':'r','River':'r','Red':'r',
+  'Orange':'r','Bread':'r','Grapes':'r','Purple':'r',
+  'Green':'r','Tree':'r','Strawberry':'r','Watermelon':'r',
+  // l sound
+  'Lemon':'l','Lion':'l','Yellow':'l','Blue':'l','Milk':'l',
+  'Apple':'l','Elephant':'l',
+  // f sound
+  'Foot':'f','Flower':'f','Giraffe':'f',
+  // æ sound
+  'Cat':'æ','Banana':'æ','Panda':'æ',
+};
+
+// 口の横断面SVG (viewBox="0 0 220 132")
+// 左=のど, 右=くちびる
+const _PALATE = `<path d="M10,75 Q60,28 115,33 Q148,38 188,56 L188,66 Q148,48 115,43 Q60,38 10,85 Z" fill="#ffd5d5"/><ellipse cx="148" cy="44" rx="16" ry="10" fill="#ffb3b3"/><rect x="171" y="57" width="9" height="13" rx="2" fill="white" stroke="#e0e0e0" stroke-width="1"/><rect x="182" y="57" width="9" height="13" rx="2" fill="white" stroke="#e0e0e0" stroke-width="1"/>`;
+const _JAW    = `<path d="M10,102 Q90,122 188,108 L188,98 Q90,112 10,92 Z" fill="#ffd5d5"/><rect x="171" y="78" width="9" height="13" rx="2" fill="white" stroke="#e0e0e0" stroke-width="1"/><rect x="182" y="78" width="9" height="13" rx="2" fill="white" stroke="#e0e0e0" stroke-width="1"/>`;
+const _LABELS_BASE = `<text x="5" y="10" fill="#ccc" font-size="8" font-family="sans-serif">← のど</text><text x="152" y="10" fill="#ccc" font-size="8" font-family="sans-serif">くちびる →</text><text x="12" y="38" fill="#c07070" font-size="8" font-family="sans-serif">上あご</text>`;
+const _AIR = `<path d="M196,84 L210,84" stroke="#14a29a" stroke-width="3" stroke-linecap="round"/><polygon points="208,79 218,84 208,89" fill="#14a29a"/><text x="197" y="75" fill="#14a29a" font-size="8" font-family="sans-serif">息</text>`;
+
+const MOUTH_PHONEME_DATA = {
+  'r': {
+    label: 'R',
+    title: '舌をどこにも\nつけないよ！',
+    tip: '舌の先をふわっと持ち上げて、上あご(歯茎)に絶対さわらないようにしてね。「ル」より奥から出る音だよ。',
+    svg: `<svg viewBox="0 0 220 132" xmlns="http://www.w3.org/2000/svg" style="width:100%;display:block">
+      ${_LABELS_BASE}
+      ${_PALATE}${_JAW}
+      <!-- Tongue: curved up, NOT touching palate -->
+      <path d="M10,100 Q70,90 125,77 Q142,72 151,68" stroke="#ff7043" stroke-width="13" fill="none" stroke-linecap="round"/>
+      <circle cx="154" cy="68" r="7" fill="#ff5722"/>
+      <!-- X = 舌が触れてはいけない場所 -->
+      <circle cx="148" cy="41" r="13" fill="#fff5f5" stroke="#ffcdd2" stroke-width="1.5"/>
+      <line x1="141" y1="34" x2="155" y2="48" stroke="#e53935" stroke-width="3" stroke-linecap="round"/>
+      <line x1="155" y1="34" x2="141" y2="48" stroke="#e53935" stroke-width="3" stroke-linecap="round"/>
+      <!-- Dashed gap line -->
+      <line x1="153" y1="60" x2="153" y2="47" stroke="#ffb74d" stroke-width="2" stroke-dasharray="3,2.5"/>
+      ${_AIR}
+      <text x="12" y="90" fill="#e64a19" font-size="8" font-family="sans-serif">した(舌)</text>
+    </svg>`
+  },
+  'l': {
+    label: 'L',
+    title: '舌先を歯茎に\nタッチしてね！',
+    tip: '舌の先を、上の前歯のすぐ後ろのでっぱり(歯茎)にしっかりつけてね。空気は舌の横から出るよ。',
+    svg: `<svg viewBox="0 0 220 132" xmlns="http://www.w3.org/2000/svg" style="width:100%;display:block">
+      ${_LABELS_BASE}
+      ${_PALATE}${_JAW}
+      <!-- Tongue: tip touching alveolar ridge -->
+      <path d="M10,100 Q70,90 125,75 Q140,68 148,57" stroke="#66bb6a" stroke-width="13" fill="none" stroke-linecap="round"/>
+      <circle cx="148" cy="54" r="7" fill="#43a047"/>
+      <!-- Star = タッチする場所 -->
+      <circle cx="148" cy="41" r="13" fill="#f1f8e9" stroke="#c8e6c9" stroke-width="1.5"/>
+      <text x="141" y="48" fill="#2e7d32" font-size="15" font-family="sans-serif">★</text>
+      ${_AIR}
+      <text x="12" y="90" fill="#2e7d32" font-size="8" font-family="sans-serif">した(舌)</text>
+    </svg>`
+  },
+  'f': {
+    label: 'F',
+    title: '上の歯を\n下くちびるにあてて！',
+    tip: '上の前歯を、下くちびるにそっとあてて、息をフーッと出してね。唇は閉じないよ。',
+    svg: `<svg viewBox="0 0 220 132" xmlns="http://www.w3.org/2000/svg" style="width:100%;display:block">
+      <!-- Side view zoomed in on lips/teeth area -->
+      <text x="5" y="10" fill="#ccc" font-size="8" font-family="sans-serif">← 口の中　　　　　　くちびる →</text>
+      <!-- Upper jaw -->
+      <path d="M10,32 Q110,18 190,35 L190,50 Q110,33 10,47 Z" fill="#ffd5d5"/>
+      <!-- Upper teeth (larger, more prominent) -->
+      <rect x="148" y="50" width="14" height="22" rx="3.5" fill="white" stroke="#ddd" stroke-width="1.5"/>
+      <rect x="164" y="50" width="14" height="22" rx="3.5" fill="white" stroke="#ddd" stroke-width="1.5"/>
+      <rect x="180" y="51" width="12" height="21" rx="3.5" fill="white" stroke="#ddd" stroke-width="1.5"/>
+      <!-- Lower lip pressing UP to touch lower edge of upper teeth -->
+      <path d="M10,110 Q100,130 190,112 Q190,85 165,76 Q148,70 130,70 L10,80 Z" fill="#ffcdd2"/>
+      <!-- Lower lip edge -->
+      <path d="M130,70 Q152,67 185,72" stroke="#e57373" stroke-width="3" fill="none" stroke-linecap="round"/>
+      <!-- Contact highlight: teeth on lower lip -->
+      <line x1="148" y1="71" x2="192" y2="71" stroke="#ff5722" stroke-width="5" stroke-linecap="round" opacity="0.65"/>
+      <!-- Air flow -->
+      <path d="M196,60 L210,60" stroke="#14a29a" stroke-width="3" stroke-linecap="round"/>
+      <polygon points="208,55 218,60 208,65" fill="#14a29a"/>
+      <!-- Labels -->
+      <text x="148" y="47" fill="#888" font-size="8.5" font-family="sans-serif">上の歯</text>
+      <text x="40" y="118" fill="#e57373" font-size="8.5" font-family="sans-serif">下くちびる</text>
+      <text x="136" y="63" fill="#ff5722" font-size="8" font-family="sans-serif">ここタッチ!</text>
+      <text x="197" y="52" fill="#14a29a" font-size="8.5" font-family="sans-serif">息</text>
+    </svg>`
+  },
+  'æ': {
+    label: 'æ',
+    title: '口を大きく\n横に開けて！',
+    tip: '日本語の「ア」より、口を横にもっと大きく開けてね。あごをグッと下に落として、口の中を広くするよ！',
+    svg: `<svg viewBox="0 0 220 132" xmlns="http://www.w3.org/2000/svg" style="width:100%;display:block">
+      <!-- Left: Japanese ア (smaller mouth) -->
+      <text x="50" y="15" fill="#999" font-size="9" font-family="sans-serif" text-anchor="middle">日本語「ア」</text>
+      <path d="M22,58 Q50,44 78,58 Q82,80 50,92 Q18,80 22,58 Z" fill="#ffcdd2" stroke="#e57373" stroke-width="2"/>
+      <ellipse cx="50" cy="72" rx="20" ry="20" fill="#c62828" opacity="0.7"/>
+      <!-- Right: English æ (wider, taller mouth) -->
+      <text x="162" y="15" fill="#14a29a" font-size="9" font-family="sans-serif" text-anchor="middle" font-weight="bold">英語「æ」</text>
+      <path d="M110,54 Q162,38 214,54 Q218,85 162,100 Q106,85 110,54 Z" fill="#ffcdd2" stroke="#e57373" stroke-width="2.5"/>
+      <ellipse cx="162" cy="74" rx="38" ry="26" fill="#c62828" opacity="0.7"/>
+      <!-- Width comparison arrows -->
+      <path d="M110,110 L214,110" stroke="#14a29a" stroke-width="2" stroke-linecap="round"/>
+      <polygon points="112,106 104,110 112,114" fill="#14a29a"/>
+      <polygon points="212,106 220,110 212,114" fill="#14a29a"/>
+      <!-- Separator arrow: ア → æ -->
+      <path d="M86,72 L104,72" stroke="#ff9800" stroke-width="2.5" stroke-linecap="round"/>
+      <polygon points="102,67 112,72 102,77" fill="#ff9800"/>
+      <!-- Labels -->
+      <text x="50" y="120" fill="#999" font-size="8.5" font-family="sans-serif" text-anchor="middle">ふつう</text>
+      <text x="162" y="122" fill="#14a29a" font-size="8.5" font-family="sans-serif" text-anchor="middle">もっと横に広く！</text>
+    </svg>`
+  },
+};
+
 // ===== PRONUNCIATION SCORING =====
 // 編集距離ベースで各文字を ok / ng に分類
 function scorePronunciation(target, heard) {
@@ -1819,8 +2028,10 @@ function loadCard() {
 
   // buttons
   document.getElementById('btn-row-after').classList.remove('hidden');
+  document.getElementById('btn-mouth').style.display = WORD_MOUTH_HINTS[word.en] ? '' : 'none';
   // モーダルが開いていれば閉じる
   if (document.getElementById('mic-modal').classList.contains('open')) closeMicModal();
+  if (document.getElementById('mouth-modal').classList.contains('open')) closeMouthModal();
 
   // 自動読み上げ
   speak(word.en);
@@ -1889,6 +2100,32 @@ document.getElementById('btn-mic').addEventListener('click', () => {
   if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) return;
   openMicModal();
 });
+
+// くちのかたちボタン
+document.getElementById('btn-mouth').addEventListener('click', openMouthModal);
+document.getElementById('mouth-modal-close').addEventListener('click', closeMouthModal);
+document.getElementById('mouth-modal').addEventListener('click', (e) => {
+  if (e.target === e.currentTarget) closeMouthModal();
+});
+
+function openMouthModal() {
+  const word = words[index];
+  const phoneme = WORD_MOUTH_HINTS[word.en];
+  if (!phoneme) return;
+  const data = MOUTH_PHONEME_DATA[phoneme];
+  if (!data) return;
+  document.getElementById('mouth-phoneme-label').textContent = data.label;
+  document.getElementById('mouth-modal-title').textContent = data.title;
+  document.getElementById('mouth-svg-wrap').innerHTML = data.svg;
+  document.getElementById('mouth-tip-box').textContent = data.tip;
+  document.getElementById('mouth-modal').setAttribute('aria-hidden', 'false');
+  document.getElementById('mouth-modal').classList.add('open');
+}
+
+function closeMouthModal() {
+  document.getElementById('mouth-modal').classList.remove('open');
+  document.getElementById('mouth-modal').setAttribute('aria-hidden', 'true');
+}
 
 // ===== 聴き比べ =====
 function stopCompareAudio() {
